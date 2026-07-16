@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "types": ["vite/client", "jest"],
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src", "src/tests"]
+}

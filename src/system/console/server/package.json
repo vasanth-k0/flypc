@@ -1,0 +1,32 @@
+{
+  "name": "flypc",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "../../../../dist/be/index.js",
+  "scripts": {
+    "clean": "rm -rf dist ../../../../dist/be",
+    "dev": "tsx watch src/index.ts",
+    "build": "npm run clean && tsc && cp src/settings.json ../../../../dist/be/settings.json && cp src/apps.json ../../../../dist/be/apps.json",
+    "watch": "npm run clean && tsc --watch",
+    "start": "node ../../../../dist/be/index.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.cjs --runInBand"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^25.9.3",
+    "@types/supertest": "^7.2.1",
+    "jest": "^29.7.0",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.11",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

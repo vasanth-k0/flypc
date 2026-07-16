@@ -1,0 +1,32 @@
+{
+    "notepad": {
+        "name": "Notepad",
+        "icon": "EditFilled",
+        "published": true,
+        "users": [
+            "admin"
+        ]
+    },
+    "terminal": {
+        "name": "Terminal",
+        "icon": "CodeFilled",
+        "published": false,
+        "users": [
+            "admin"
+        ]
+    },
+    "coderun-lite": {
+        "name": "Coderun-Lite",
+        "icon": "ThunderboltFilled",
+        "published": true,
+        "users": []
+    },
+    "mongodb": {
+        "name": "Mongo DB",
+        "icon": "DatabaseFilled",
+        "published": true,
+        "users": [
+            "admin"
+        ]
+    }
+}

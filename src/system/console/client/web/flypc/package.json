@@ -1,0 +1,49 @@
+{
+  "name": "flypc",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && mkdir -p ../../../../../../dist/fe/resources && cp -R public/resources/. ../../../../../../dist/fe/resources/",
+    "watch": "tsc -b --watch",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "jest --config jest.config.cjs",
+    "test:watch": "jest --config jest.config.cjs --watchAll"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@microlink/react-json-view": "^1.31.15",
+    "@reduxjs/toolkit": "^2.12.0",
+    "@uiw/react-codemirror": "^4.25.8",
+    "antd": "^6.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-icons": "^5.6.0",
+    "react-redux": "^9.3.0",
+    "react-router-dom": "^7.13.1",
+    "redux": "^5.0.1",
+    "unplugin-auto-import": "^21.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "ts-jest": "^29.4.11",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.62.0",
+    "vite": "^7.3.1"
+  }
+}

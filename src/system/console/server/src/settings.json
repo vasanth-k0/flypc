@@ -1,0 +1,18 @@
+{
+    "name": "Flypc - Live Demo",
+    "flypc": {
+        "github_repo": "vasanth-k0/flypc",
+        "release": "1.0",
+        "last_update": ""
+    },
+    "port": 3000,
+    "contactAdmin": "vasanth.k08@gmail.com",
+    "colorPalette":  "Grey • Blue",
+    "ui": "desktop",
+    "gotoConsole": true,
+    "defaultApp": "coderun-lite",
+    "wallp": 1,
+    "env": {
+        "type": "prod"
+    }
+}
