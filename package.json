@@ -1,6 +1,17 @@
 {
+  "name": "flypc-monorepo",
+  "private": true,
   "type": "module",
-  "dependencies": {
-    "express": "^5.2.1"
+  "workspaces": [
+    "src/system/console/server",
+    "src/system/console/client/web/flypc"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces",
+    "dev:server": "npm run dev -w @flypc/server",
+    "dev:web": "npm run dev -w @flypc/web",
+    "build": "npm run build -w @flypc/web && npm run build -w @flypc/server",
+    "start": "npm run start -w @flypc/server",
+    "test": "npm run test -w @flypc/server && npm run test -w @flypc/web"
   }
 }

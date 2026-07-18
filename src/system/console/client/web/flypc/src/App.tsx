@@ -15,13 +15,23 @@ function App() {
   const layout = settingsState.ui
   const wallpaperUrl = `/resources/vx-${settingsState.wallp}.webp`
   const isDashboard = layout === 'dashboard'
+  const isHybrid = layout === 'hybrid-console'
 
-  const consoleStyle: React.CSSProperties = {
+  const screenStyle: React.CSSProperties = {
     position: 'fixed',
     top: 0,
     left: 0,
     width: '100vw',
     height: '100vh',
+    overflow: 'hidden',
+    background: '#ffffff',
+    padding: isHybrid ? '10px' : '0',
+    boxSizing: 'border-box',
+  }
+
+  const consoleStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
     overflow: 'hidden',
     backgroundImage: isDashboard ? 'none' : `url(${wallpaperUrl})`,
     backgroundColor: isDashboard ? '#ffffff' : 'transparent',
@@ -33,8 +43,10 @@ function App() {
   }
 
   return (
-    <div id="console" style={consoleStyle}>
-      <Dashboard />
+    <div id="screen" style={screenStyle}>
+      <div id="console" style={consoleStyle}>
+        <Dashboard />
+      </div>
     </div>
   )
 }

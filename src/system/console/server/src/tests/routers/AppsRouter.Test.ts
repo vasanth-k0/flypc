@@ -7,7 +7,7 @@ describe('AppsRouter', () => {
 
   beforeEach(() => {
     app = express()
-    app.use('/apps', AppsRouter)
+    app.use(AppsRouter)
   })
 
   it('returns router status at GET /apps', async () => {

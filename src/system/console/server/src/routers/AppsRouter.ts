@@ -2,6 +2,8 @@ import express from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import UserRouter from './UserRouter.js'
+import SettingsRouter from './SettingsRouter.js'
 
 type AppDefinition = {
   name: string
@@ -16,16 +18,17 @@ const appsFileCandidates = [
   path.resolve(__dirname, '../apps.json'),
   path.resolve(process.cwd(), 'src/apps.json'),
 ]
-const appsFile = appsFileCandidates.find((candidate) => fs.existsSync(candidate)) ?? appsFileCandidates[0]
+const defaultAppsFile = path.resolve(__dirname, '../apps.json')
+const appsFile = appsFileCandidates.find((candidate) => fs.existsSync(candidate)) ?? defaultAppsFile
 
-router.get('/', (_req, res) => {
+router.get('/apps', (_req, res) => {
   res.json({
     status: 'apps-router-active',
     routes: ['/apps/list'],
   })
 })
 
-router.get('/list', (_req, res) => {
+router.get('/apps/list', (_req, res) => {
   try {
     const raw = fs.readFileSync(appsFile, 'utf8')
     const apps = JSON.parse(raw) as Record<string, AppDefinition>
@@ -43,5 +46,8 @@ router.get('/list', (_req, res) => {
     })
   }
 })
+
+router.use(UserRouter)
+router.use(SettingsRouter)
 
 export default router
