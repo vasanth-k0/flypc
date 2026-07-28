@@ -66,11 +66,17 @@ type MemberSummary = {
   usagePercent: number
 }
 
+type DesktopBridgeWindow = Window & {
+  flypcDesktop?: {
+    toggleFullScreen?: () => Promise<boolean>
+  }
+}
+
 const APP_ICON_MAP: Record<string, React.ReactNode> = {
-  EditFilled: <EditFilled />,
-  CodeFilled: <CodeFilled />,
-  ThunderboltFilled: <ThunderboltFilled />,
-  DatabaseFilled: <DatabaseFilled />,
+  EditFilled: <EditFilled style={{ color: '#334155' }} />,
+  CodeFilled: <CodeFilled style={{ color: '#334155' }} />,
+  ThunderboltFilled: <ThunderboltFilled style={{ color: '#334155' }} />,
+  DatabaseFilled: <DatabaseFilled style={{ color: '#334155' }} />,
 }
 
 export const appbrick: React.CSSProperties = {
@@ -430,14 +436,34 @@ const Dashboard: React.FC = () => {
   const handleColorPaletteChange = (themeName: string) => {
     dispatch(setColorPalette(themeName)) // optimistic update
     void updateSetting({ action: 'update', property: 'colorPalette', value: themeName })
+    const primary = ColorPalette.options[themeName as keyof typeof ColorPalette.options]?.[0]
+    if (primary) {
+      try {
+        window.parent.postMessage({ type: 'FLYPC_THEME_CHANGED', themeName, primaryColor: primary }, '*')
+      } catch {
+        // ignore
+      }
+    }
   }
+
+  React.useEffect(() => {
+    if (!activeTheme) return
+    const primary = ColorPalette.options[activeTheme as keyof typeof ColorPalette.options]?.[0]
+    if (primary) {
+      try {
+        window.parent.postMessage({ type: 'FLYPC_THEME_CHANGED', themeName: activeTheme, primaryColor: primary }, '*')
+      } catch {
+        // ignore
+      }
+    }
+  }, [activeTheme])
 
   const menuItems = [
     { key: 'apps', label: 'Apps', icon: <AppstoreOutlined /> },
     { key: 'monitor', label: 'Monitor', icon: <MonitorOutlined /> },
     { key: 'files', label: 'File Manager', icon: <FolderOpenOutlined /> },
-    { key: 'terminal', label: 'App Terminal', icon: <ThunderboltOutlined /> },
-    { key: 'settings', label: 'System Settings', icon: <SettingOutlined /> },
+    { key: 'terminal', label: 'Terminal', icon: <ThunderboltOutlined /> },
+    { key: 'settings', label: 'Settings', icon: <SettingOutlined /> },
   ]
 
   const accountSubmenuItems: Array<{ key: WindowId; label: string; icon: React.ReactNode }> = [
@@ -456,6 +482,7 @@ const Dashboard: React.FC = () => {
   const isDesktop = layoutMode === 'desktop'
   const isHybrid = layoutMode === 'hybrid-console'
   const isDesktopLike = isDesktop || isHybrid
+  const sidebarOnRight = !isLandscape && (isDashboard || isHybrid)
   const isAppsLauncherWindow = activeWindowId === 'apps'
   const isAppsShortcutView = !isDashboard && isAppsLauncherWindow && isDesktopLike
   const isShortcutSurface = isAppsShortcutView
@@ -471,7 +498,7 @@ const Dashboard: React.FC = () => {
         ? 'Accounts'
         : activeWindowId === 'members'
           ? 'Members'
-      : menuItems.find((m) => m.key === activeWindowId)?.label ?? 'Console'
+          : menuItems.find((m) => m.key === activeWindowId)?.label ?? 'Console'
 
   const visibleMenuItems = [
     menuItems[0],
@@ -496,6 +523,11 @@ const Dashboard: React.FC = () => {
     published: app.published,
     open: () => handleAppOpen(app),
   }))
+
+  const toggleDesktopFullscreen = React.useCallback(() => {
+    const hostWindow = (window.parent && window.parent !== window ? window.parent : window) as DesktopBridgeWindow
+    void hostWindow.flypcDesktop?.toggleFullScreen?.()
+  }, [])
 
   return (
     <div
@@ -582,11 +614,11 @@ const Dashboard: React.FC = () => {
         style={{
           display: 'flex',
           flex: 1,
-          flexDirection: isDesktop ? 'column' : isDashboard ? (isLandscape ? 'row' : 'row-reverse') : 'row',
+          flexDirection: isDesktop ? 'column' : (isDashboard || isHybrid) ? (isLandscape ? 'row' : 'row-reverse') : 'row',
           height: isDashboard ? 'calc(100% - 60px)' : '100%',
           overflow: 'hidden',
           position: 'relative',
-          borderRadius: isDashboard ? '5px' : '0',
+          borderRadius: isDashboard ? '7px' : '0',
           border: isDashboard ? '1px solid rgba(0, 0, 0, 0.07)' : 'none',
           margin: isDashboard ? '0 10px 10px' : '0',
         }}
@@ -613,7 +645,7 @@ const Dashboard: React.FC = () => {
               transition: 'left 0.28s ease, right 0.28s ease, background-color 0.2s ease',
             }}
           >
-            {isDashboardMenuVisible ? <MenuUnfoldOutlined /> : <MenuFoldOutlined /> }
+            {isDashboardMenuVisible ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </button>
         )}
 
@@ -635,18 +667,20 @@ const Dashboard: React.FC = () => {
                 : '0.75rem 0.25rem',
               boxSizing: 'border-box',
               background: primaryColor,
-              borderLeft: isDashboard
-                ? isLandscape
-                  ? '1px solid transparent'
-                  : isDashboardMenuVisible
+              borderLeft: sidebarOnRight
+                ? '1px solid rgba(255, 255, 255, 0.12)'
+                : '1px solid transparent',
+              borderRight: sidebarOnRight
+                ? '1px solid transparent'
+                : isDashboard && isLandscape
+                  ? isDashboardMenuVisible
                     ? '1px solid rgba(0, 0, 0, 0.06)'
                     : '1px solid transparent'
-                : '1px solid rgba(255, 255, 255, 0.12)',
-              borderRight: isDashboard && isLandscape
-                ? isDashboardMenuVisible
-                  ? '1px solid rgba(0, 0, 0, 0.06)'
-                  : '1px solid transparent'
-                : '1px solid transparent',
+                  : isDashboard
+                    ? isDashboardMenuVisible
+                      ? '1px solid rgba(0, 0, 0, 0.06)'
+                      : '1px solid transparent'
+                    : '1px solid rgba(255, 255, 255, 0.12)',
               zIndex: 5,
               overflow: 'visible',
               opacity: isDashboard && !isDashboardMenuVisible ? 0 : 1,
@@ -861,6 +895,7 @@ const Dashboard: React.FC = () => {
         >
           <div
             id="window"
+            onDoubleClick={toggleDesktopFullscreen}
             style={{
               position: isWindowMaximized ? 'fixed' : 'relative',
               inset: isWindowMaximized ? 0 : undefined,
@@ -871,18 +906,18 @@ const Dashboard: React.FC = () => {
               background: isShortcutSurface
                 ? 'transparent'
                 : isDashboard
-                ? '#ffffff'
-                : 'rgba(255, 255, 255, 0.18)',
+                  ? '#ffffff'
+                  : 'rgba(255, 255, 255, 0.18)',
               backdropFilter: isShortcutSurface ? 'none' : 'blur(24px)',
               borderRadius: isShortcutSurface || isDashboard || isWindowMaximized ? '0' : '5px',
               padding: '0',
               boxShadow: isShortcutSurface
                 ? 'none'
                 : isWindowMaximized
-                ? 'none'
-                : isDashboard
-                ? '0 2px 16px rgba(0,0,0,0.06)'
-                : '0 16px 40px rgba(0, 0, 0, 0.18)',
+                  ? 'none'
+                  : isDashboard
+                    ? '0 2px 16px rgba(0,0,0,0.06)'
+                    : '0 16px 40px rgba(0, 0, 0, 0.18)',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
@@ -898,22 +933,31 @@ const Dashboard: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   padding: '0.35rem 0.35rem 0.35rem 0.85rem',
-                  background: 'rgba(255,255,255,0.35)',
+                  background: 'rgba(255, 255, 255, 0.81)',
+                  color: 'white'
                 }}
               >
                 <span
                   style={{
                     fontSize: '0.72rem',
                     fontWeight: 400,
-                    color: 'rgba(255,255,255,0.65)',
                     letterSpacing: '0.03em',
                     textTransform: 'uppercase',
                     userSelect: 'none',
+                    color: 'black'
                   }}
                 >
                   {activeLabel}
                 </span>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: isHybrid ? '0.35rem' : 0 }}>
+                <div style={{
+                  marginLeft: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: isHybrid ? '0.35rem' : 0,
+                  padding: '5px 7px',
+                  borderRadius: '5rem',
+                  background: isHybrid ? primaryColor : 'transparent'
+                }}>
                   <Button
                     id="btn-min"
                     title="Minimise"
@@ -928,11 +972,11 @@ const Dashboard: React.FC = () => {
                       borderRadius: isHybrid ? '999px' : '0',
                       border: 'none',
                       background: isHybrid ? secondaryColor : 'transparent',
-                      color: 'rgba(255,255,255,0.72)',
                       display: 'grid',
                       placeItems: 'center',
                       cursor: 'pointer',
                       boxShadow: 'none',
+                      color: isHybrid ? 'white' : 'black'
                     }}
                   />
                   <Button
@@ -949,11 +993,11 @@ const Dashboard: React.FC = () => {
                       borderRadius: isHybrid ? '999px' : '0',
                       border: 'none',
                       background: isHybrid ? secondaryColor : 'transparent',
-                      color: 'rgba(255,255,255,0.72)',
                       display: 'grid',
                       placeItems: 'center',
                       cursor: 'pointer',
                       boxShadow: 'none',
+                      color: isHybrid ? 'white' : 'black'
                     }}
                   />
                   {activeWindowId !== 'apps' && (
@@ -969,12 +1013,12 @@ const Dashboard: React.FC = () => {
                         padding: isHybrid ? '5px' : '0',
                         borderRadius: isHybrid ? '999px' : '0',
                         border: 'none',
-                        background: isHybrid ? primaryColor : 'transparent',
-                        color: 'rgba(255,255,255,0.72)',
+                        background: isHybrid ? secondaryColor : 'transparent',
                         display: 'grid',
                         placeItems: 'center',
                         cursor: 'pointer',
                         boxShadow: 'none',
+                        color: isHybrid ? 'white' : 'black'
                       }}
                     />
                   )}
@@ -984,96 +1028,19 @@ const Dashboard: React.FC = () => {
             {/* Window content — scrollable */}
             <div id="client" style={{ padding: isShortcutSurface ? '1rem 1.25rem' : '1.25rem 1.5rem', overflowY: 'auto', flex: 1 }}>
               <div style={{ display: activeWindowId === 'apps' ? 'block' : 'none', height: isAppsShortcutView ? '100%' : 'auto' }}>
-                  {isAppsShortcutView ? (
-                    <div
-                      style={{
-                        display: isDesktop ? 'flex' : 'grid',
-                        flexDirection: isDesktop ? 'column' : undefined,
-                        flexWrap: isDesktop ? 'wrap' : undefined,
-                        alignContent: isDesktop ? 'flex-start' : undefined,
-                        gridTemplateColumns: isDesktop ? undefined : 'repeat(auto-fill, minmax(92px, 1fr))',
-                        gap: '1rem 0.8rem',
-                        maxWidth: isDesktop ? '100%' : '780px',
-                        height: isDesktop ? '100%' : undefined,
-                        overflowX: isDesktop ? 'auto' : undefined,
-                        overflowY: isDesktop ? 'hidden' : undefined,
-                      }}
-                    >
-                      {launcherApps.map((app) => {
-
-                        return (
-                          <Button
-                            key={app.key}
-                            onClick={app.open}
-                            type="text"
-                            className={isHybrid ? 'app-brick-btn app-brick-btn-hybrid' : 'app-brick-btn app-brick-btn-desktop'}
-                            style={
-                              isHybrid
-                                ? hybridAppbrick
-                                : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '0.4rem',
-                                    padding: '0.4rem 0.25rem',
-                                    borderRadius: '10px',
-                                  }
-                            }
-                          >
-                            <div
-                              style={{
-                                width: isHybrid ? '24px' : '56px',
-                                height: isHybrid ? '24px' : '56px',
-                                borderRadius: isHybrid ? '0' : '14px',
-                                background: isHybrid ? 'transparent' : 'rgba(255,255,255,0.2)',
-                                border: isHybrid ? 'none' : '1px solid rgba(255,255,255,0.25)',
-                                color: primaryColor,
-                                display: 'grid',
-                                placeItems: 'center',
-                                fontSize: isHybrid ? '1rem' : '1.45rem',
-                                backdropFilter: isHybrid ? 'none' : 'blur(3px)',
-                              }}
-                            >
-                              <span style={{ filter: isAppsShortcutView ? 'saturate(0.65)' : 'none' }}>{app.iconNode}</span>
-                            </div>
-                            <div
-                              style={{
-                                fontSize: isHybrid ? '10px' : '0.78rem',
-                                fontWeight: 400,
-                                color: isHybrid ? '#0f172a' : '#ffffff',
-                                textShadow: isHybrid ? 'none' : '0 1px 2px rgba(0,0,0,0.55)',
-                                textAlign: 'center',
-                                lineHeight: 1.2,
-                                marginTop: isHybrid ? '4px' : '0',
-                              }}
-                            >
-                              {app.name}
-                            </div>
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <>
-                  <h2 style={{ margin: '0 0 0.3rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                    Applications
-                  </h2>
-                  <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                    Select an app to open its window. Contents will be added later.
-                  </p>
-
-                  {appsError && (
-                    <div style={{ marginBottom: '1rem', color: '#b91c1c', fontSize: '0.75rem' }}>{appsError}</div>
-                  )}
-
+                {isAppsShortcutView ? (
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: '0.75rem',
+                      display: isDesktop ? 'flex' : 'grid',
+                      flexDirection: isDesktop ? 'column' : undefined,
+                      flexWrap: isDesktop ? 'wrap' : undefined,
+                      alignContent: isDesktop ? 'flex-start' : undefined,
+                      gridTemplateColumns: isDesktop ? undefined : 'repeat(auto-fill, minmax(92px, 1fr))',
+                      gap: '1rem 0.8rem',
+                      maxWidth: isDesktop ? '100%' : '780px',
+                      height: isDesktop ? '100%' : undefined,
+                      overflowX: isDesktop ? 'auto' : undefined,
+                      overflowY: isDesktop ? 'hidden' : undefined,
                     }}
                   >
                     {launcherApps.map((app) => {
@@ -1083,181 +1050,258 @@ const Dashboard: React.FC = () => {
                           key={app.key}
                           onClick={app.open}
                           type="text"
-                          className="app-card-btn"
-                          style={{
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(0,0,0,0.08)',
-                            background: '#ffffff',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '0.65rem',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                          }}
+                          className={isHybrid ? 'app-brick-btn app-brick-btn-hybrid' : 'app-brick-btn app-brick-btn-desktop'}
+                          style={
+                            isHybrid
+                              ? hybridAppbrick
+                              : {
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.4rem 0.25rem',
+                                borderRadius: '10px',
+                              }
+                          }
                         >
                           <div
                             style={{
-                              width: '40px',
-                              height: '40px',
-                              borderRadius: '10px',
-                              background: `${primaryColor}15`,
-                              color: primaryColor,
+                              width: isHybrid ? '24px' : '56px',
+                              height: isHybrid ? '24px' : '56px',
+                              borderRadius: isHybrid ? '0' : '14px',
+                              background: isHybrid ? 'transparent' : 'rgba(255,255,255,0.2)',
+                              border: isHybrid ? 'none' : '1px solid rgba(255,255,255,0.25)',
+                              color: '#334155',
                               display: 'grid',
                               placeItems: 'center',
-                              fontSize: '1.1rem',
+                              fontSize: isHybrid ? '1rem' : '1.45rem',
+                              backdropFilter: isHybrid ? 'none' : 'blur(3px)',
                             }}
                           >
-                            {app.iconNode}
+                            <span style={{ filter: isAppsShortcutView ? 'saturate(0.65)' : 'none' }}>{app.iconNode}</span>
                           </div>
-                          <div style={{ width: '100%' }}>
-                            <div style={{ fontSize: '0.95rem', fontWeight: 500, color: '#0f172a' }}>{app.name}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.25rem' }}>
-                              {app.published ? 'Published' : 'Unpublished'}
-                            </div>
+                          <div
+                            style={{
+                              fontSize: isHybrid ? '10px' : '0.78rem',
+                              fontWeight: 400,
+                              color: isHybrid ? '#0f172a' : '#ffffff',
+                              textShadow: isHybrid ? 'none' : '0 1px 2px rgba(0,0,0,0.55)',
+                              textAlign: 'center',
+                              lineHeight: 1.2,
+                              marginTop: isHybrid ? '4px' : '0',
+                            }}
+                          >
+                            {app.name}
                           </div>
                         </Button>
                       )
                     })}
                   </div>
-                    </>
-                  )}
+                ) : (
+                  <>
+                    <h2 style={{ margin: '0 0 0.3rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
+                      Applications
+                    </h2>
+                    <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
+                      Select an app to open its window. Contents will be added later.
+                    </p>
+
+                    {appsError && (
+                      <div style={{ marginBottom: '1rem', color: '#b91c1c', fontSize: '0.75rem' }}>{appsError}</div>
+                    )}
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      {launcherApps.map((app) => {
+
+                        return (
+                          <Button
+                            key={app.key}
+                            onClick={app.open}
+                            type="text"
+                            className="app-card-btn"
+                            style={{
+                              padding: '1rem',
+                              borderRadius: '12px',
+                              border: '1px solid rgba(0,0,0,0.08)',
+                              background: '#ffffff',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: '0.65rem',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '10px',
+                                background: '#f1f5f9',
+                                color: '#334155',
+                                display: 'grid',
+                                placeItems: 'center',
+                                fontSize: '1.1rem',
+                              }}
+                            >
+                              {app.iconNode}
+                            </div>
+                            <div style={{ width: '100%' }}>
+                              <div style={{ fontSize: '0.95rem', fontWeight: 500, color: '#0f172a' }}>{app.name}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.25rem' }}>
+                                {app.published ? 'Published' : 'Unpublished'}
+                              </div>
+                            </div>
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div style={{ display: activeWindowId === 'monitor' ? 'block' : 'none' }}>
-                  <h2 style={{ margin: '0 0 0.3rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                    System Health Overview
-                  </h2>
-                  <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                    Monitoring physical node capacity and containers.
-                  </p>
+                <h2 style={{ margin: '0 0 0.3rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
+                  System Health Overview
+                </h2>
+                <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  Monitoring physical node capacity and containers.
+                </p>
 
-                  {/* Metrics Cards */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: '1rem',
-                      marginBottom: '2rem',
-                    }}
-                  >
-                    {[
-                      { label: 'CPU Usage', val: '24%', sub: '2.4 GHz Avg' },
-                      { label: 'Memory', val: '4.8 GB / 8 GB', sub: '60% Allocated' },
-                      { label: 'Storage', val: '12.4 GB Free', sub: 'SSD Pool' },
-                      { label: 'Isolated Pods', val: '4 Active', sub: 'Sandboxed' },
-                    ].map((metric, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: '1.25rem',
-                          borderRadius: '12px',
-                          background: isDashboard ? '#f8fafc' : 'rgba(0, 0, 0, 0.03)',
-                          border: isDashboard
-                            ? '1px solid #e2e8f0'
-                            : '1px solid rgba(0, 0, 0, 0.06)',
-                          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4)',
-                        }}
-                      >
-                        <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          {metric.label}
-                        </div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', lineHeight: 1.2 }}>
-                          {metric.val}
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                          {metric.sub}
-                        </div>
+                {/* Metrics Cards */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '1rem',
+                    marginBottom: '2rem',
+                  }}
+                >
+                  {[
+                    { label: 'CPU Usage', val: '24%', sub: '2.4 GHz Avg' },
+                    { label: 'Memory', val: '4.8 GB / 8 GB', sub: '60% Allocated' },
+                    { label: 'Storage', val: '12.4 GB Free', sub: 'SSD Pool' },
+                    { label: 'Isolated Pods', val: '4 Active', sub: 'Sandboxed' },
+                  ].map((metric, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '12px',
+                        background: isDashboard ? '#f8fafc' : 'rgba(0, 0, 0, 0.03)',
+                        border: isDashboard
+                          ? '1px solid #e2e8f0'
+                          : '1px solid rgba(0, 0, 0, 0.06)',
+                        boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4)',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {metric.label}
                       </div>
-                    ))}
-                  </div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', lineHeight: 1.2 }}>
+                        {metric.val}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                        {metric.sub}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                  <div
-                    style={{
-                      padding: '1rem',
-                      borderRadius: '8px',
-                      background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}05)`,
-                      border: `1px solid ${primaryColor}30`,
-                      color: '#475569',
-                      fontSize: '0.75rem',
-                      lineHeight: '1.5',
-                    }}
-                  >
-                    <span style={{ fontWeight: 500 }}>Pro-Tip:</span> Switch to <span style={{ fontWeight: 500 }}>System Settings</span> to adjust layouts, color schemes, and observe changes in realtime.
-                  </div>
+                <div
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}05)`,
+                    border: `1px solid ${primaryColor}30`,
+                    color: '#475569',
+                    fontSize: '0.75rem',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>Pro-Tip:</span> Switch to <span style={{ fontWeight: 500 }}>Settings</span> to adjust layouts, color schemes, and observe changes in realtime.
+                </div>
               </div>
 
               <div style={{ display: activeWindowId === 'files' ? 'block' : 'none' }}>
-                  <h2 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>Isolated Storage Mounts</h2>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.75rem',
-                    }}
-                  >
-                    {['/mount/notepad/docs', '/mount/terminal/bin', '/mount/shared/assets'].map((dir, idx) => (
-                      <div
-                        key={idx}
+                <h2 style={{ margin: '0 0 1rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>Isolated Storage Mounts</h2>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                  }}
+                >
+                  {['/mount/notepad/docs', '/mount/terminal/bin', '/mount/shared/assets'].map((dir, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        background: isDashboard ? '#f8fafc' : 'rgba(0, 0, 0, 0.02)',
+                        border: isDashboard ? '1px solid #e2e8f0' : '1px solid rgba(0, 0, 0, 0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <FolderOpenOutlined style={{ color: '#475569', fontSize: '1.2rem' }} />
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: '0.9rem', color: '#0f172a' }}>{dir}</span>
+                      </div>
+                      <span
                         style={{
-                          padding: '1rem',
-                          borderRadius: '8px',
-                          background: isDashboard ? '#f8fafc' : 'rgba(0, 0, 0, 0.02)',
-                          border: isDashboard ? '1px solid #e2e8f0' : '1px solid rgba(0, 0, 0, 0.05)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                          fontSize: '0.75rem',
+                          background: '#e2e8f0',
+                          color: '#334155',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
+                          fontWeight: 500,
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <FolderOpenOutlined style={{ color: primaryColor, fontSize: '1.2rem' }} />
-                          <span style={{ fontFamily: 'var(--mono)', fontSize: '0.9rem', color: '#0f172a' }}>{dir}</span>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: '0.75rem',
-                            background: `${primaryColor}20`,
-                            color: primaryColor,
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '4px',
-                            fontWeight: 500,
-                          }}
-                        >
-                          Read/Write
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                        Read/Write
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div style={{ display: activeWindowId === 'terminal' ? 'block' : 'none' }}>
-                  <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>Container Shell</h2>
-                  <div
-                    style={{
-                      background: '#090d16',
-                      borderRadius: '10px',
-                      padding: '1.25rem',
-                      fontFamily: 'var(--mono)',
-                      fontSize: '0.9rem',
-                      color: '#4af626',
-                      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                      border: '1px solid #1e293b',
-                      height: '240px',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div style={{ color: '#888', marginBottom: '0.5rem' }}>FlyPC Container OS v1.0.0 (x86_64-pc-linux)</div>
-                    <div>$ flypc list-pods</div>
-                    <div style={{ color: '#fff', margin: '0.2rem 0 0.5rem' }}>
-                      pod-0 (Notepad)         - RUNNING (pid: 140)<br />
-                      pod-1 (Coderun-Lite)    - RUNNING (pid: 145)<br />
-                      pod-2 (System-Monitor)  - RUNNING (pid: 152)
-                    </div>
-                    <div>$ echo "Theme active: {activeTheme}"</div>
-                    <div style={{ color: '#fff', margin: '0.25rem 0' }}>Theme active: {activeTheme}</div>
-                    <div style={{ display: 'inline-block', width: '8px', height: '15px', background: '#4af626', verticalAlign: 'middle', animation: 'pulse 1s infinite' }} />
+                <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>Container Shell</h2>
+                <div
+                  style={{
+                    background: '#090d16',
+                    borderRadius: '10px',
+                    padding: '1.25rem',
+                    fontFamily: 'var(--mono)',
+                    fontSize: '0.9rem',
+                    color: '#4af626',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                    border: '1px solid #1e293b',
+                    height: '240px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ color: '#888', marginBottom: '0.5rem' }}>FlyPC Container OS v1.0.0 (x86_64-pc-linux)</div>
+                  <div>$ flypc list-pods</div>
+                  <div style={{ color: '#fff', margin: '0.2rem 0 0.5rem' }}>
+                    pod-0 (Notepad)         - RUNNING (pid: 140)<br />
+                    pod-1 (Coderun-Lite)    - RUNNING (pid: 145)<br />
+                    pod-2 (System-Monitor)  - RUNNING (pid: 152)
                   </div>
+                  <div>$ echo "Theme active: {activeTheme}"</div>
+                  <div style={{ color: '#fff', margin: '0.25rem 0' }}>Theme active: {activeTheme}</div>
+                  <div style={{ display: 'inline-block', width: '8px', height: '15px', background: '#4af626', verticalAlign: 'middle', animation: 'pulse 1s infinite' }} />
+                </div>
               </div>
 
               <div style={{ display: activeWindowId === 'accounts' ? 'block' : 'none' }}>
@@ -1411,225 +1455,225 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={{ display: activeWindowId === 'settings' ? 'block' : 'none' }}>
-                  <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>System Configuration</h2>
-                  <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                    Manage the interface layout and color themes in real-time.
-                  </p>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>System Configuration</h2>
+                <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  Manage the interface layout and color themes in real-time.
+                </p>
 
-                  {/* Layout Mode Toggles */}
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-                      Layout Mode
-                    </h3>
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                      {(['desktop', 'dashboard', 'hybrid-console'] as LayoutMode[]).map((mode) => (
+                {/* Layout Mode Toggles */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
+                    Layout Mode
+                  </h3>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {(['desktop', 'dashboard', 'hybrid-console'] as LayoutMode[]).map((mode) => (
+                      <Button
+                        key={mode}
+                        onClick={() => handleLayoutModeChange(mode)}
+                        type="text"
+                        style={{
+                          padding: '0.6rem 1.2rem',
+                          borderRadius: '8px',
+                          border: layoutMode === mode
+                            ? `2px solid ${primaryColor}`
+                            : '1px solid rgba(0,0,0,0.15)',
+                          background: layoutMode === mode
+                            ? `${primaryColor}15`
+                            : 'transparent',
+                          color: layoutMode === mode
+                            ? primaryColor
+                            : '#475569',
+                          fontWeight: 400,
+                          cursor: 'pointer',
+                          textTransform: 'capitalize',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {mode.replace('-', ' ')}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color Palette Option Toggles */}
+                <div>
+                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
+                    Color Palette
+                  </h3>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {Object.keys(ColorPalette.options).map((themeName) => {
+                      const isActive = activeTheme === themeName
+                      const themeColors = ColorPalette.options[themeName as keyof typeof ColorPalette.options]
+                      return (
                         <Button
-                          key={mode}
-                          onClick={() => handleLayoutModeChange(mode)}
+                          key={themeName}
+                          onClick={() => handleColorPaletteChange(themeName)}
                           type="text"
                           style={{
-                            padding: '0.6rem 1.2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.5rem 0.75rem',
                             borderRadius: '8px',
-                            border: layoutMode === mode
-                              ? `2px solid ${primaryColor}`
-                              : '1px solid rgba(0,0,0,0.15)',
-                            background: layoutMode === mode
-                              ? `${primaryColor}15`
-                              : 'transparent',
-                            color: layoutMode === mode
-                              ? primaryColor
-                              : '#475569',
-                            fontWeight: 400,
+                            border: isActive
+                              ? `2px solid ${themeColors[0]}`
+                              : '1px solid rgba(0,0,0,0.08)',
+                            background: isActive
+                              ? `${themeColors[0]}15`
+                              : 'rgba(0,0,0,0.02)',
+                            color: '#334155',
                             cursor: 'pointer',
-                            textTransform: 'capitalize',
+                            fontSize: '0.85rem',
                             transition: 'all 0.2s',
+                            textAlign: 'left',
                           }}
                         >
-                          {mode.replace('-', ' ')}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Color Palette Option Toggles */}
-                  <div>
-                    <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-                      Color Palette
-                    </h3>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                        gap: '0.5rem',
-                      }}
-                    >
-                      {Object.keys(ColorPalette.options).map((themeName) => {
-                        const isActive = activeTheme === themeName
-                        const themeColors = ColorPalette.options[themeName as keyof typeof ColorPalette.options]
-                        return (
-                          <Button
-                            key={themeName}
-                            onClick={() => handleColorPaletteChange(themeName)}
-                            type="text"
+                          <span style={{ fontWeight: 400 }}>{themeName}</span>
+                          <span
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '0.5rem 0.75rem',
-                              borderRadius: '8px',
-                              border: isActive
-                                ? `2px solid ${themeColors[0]}`
-                                : '1px solid rgba(0,0,0,0.08)',
-                              background: isActive
-                                ? `${themeColors[0]}15`
-                                : 'rgba(0,0,0,0.02)',
-                              color: '#334155',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem',
-                              transition: 'all 0.2s',
-                              textAlign: 'left',
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              background: themeColors[0],
+                              border: '1px solid rgba(255,255,255,0.3)',
                             }}
-                          >
-                            <span style={{ fontWeight: 400 }}>{themeName}</span>
-                            <span
-                              style={{
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                background: themeColors[0],
-                                border: '1px solid rgba(255,255,255,0.3)',
-                              }}
-                            />
-                          </Button>
-                        )
-                      })}
-                    </div>
+                          />
+                        </Button>
+                      )
+                    })}
                   </div>
+                </div>
 
-                  {!isDashboard && (
-                    <div
-                      style={{
-                        marginTop: '1.25rem',
-                        width: isLandscape ? '30vw' : '100%',
-                        maxWidth: '100%',
-                        marginLeft: 'auto',
-                        marginRight: 'auto',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        ['--wallpaper-accent' as string]: primaryColor,
-                      }}
-                    >
-                      {/* Wallpaper Picker */}
-                      <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500, alignSelf: 'flex-start' }}>
-                        Wallpaper
-                      </h3>
+                {!isDashboard && (
+                  <div
+                    style={{
+                      marginTop: '1.25rem',
+                      width: isLandscape ? '30vw' : '100%',
+                      maxWidth: '100%',
+                      marginLeft: 'auto',
+                      marginRight: 'auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      ['--wallpaper-accent' as string]: primaryColor,
+                    }}
+                  >
+                    {/* Wallpaper Picker */}
+                    <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500, alignSelf: 'flex-start' }}>
+                      Wallpaper
+                    </h3>
 
-                      {/* Active wallpaper preview */}
-                      <div style={{ marginBottom: '1rem', width: '100%' }}>
-                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 0.5rem' }}>Active</p>
+                    {/* Active wallpaper preview */}
+                    <div style={{ marginBottom: '1rem', width: '100%' }}>
+                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 0.5rem' }}>Active</p>
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '160px',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          border: `2px solid ${primaryColor}`,
+                          boxShadow: `0 0 0 4px ${primaryColor}20`,
+                          position: 'relative',
+                        }}
+                      >
+                        <img
+                          src={`/resources/vx-${activeWallp}.webp`}
+                          alt={`Wallpaper ${activeWallp}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
                         <div
                           style={{
-                            width: '100%',
-                            height: '160px',
-                            borderRadius: '12px',
+                            position: 'absolute',
+                            bottom: '8px',
+                            right: '10px',
+                            background: 'rgba(0,0,0,0.55)',
+                            backdropFilter: 'blur(6px)',
+                            color: '#fff',
+                            fontSize: '0.75rem',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '6px',
+                            fontWeight: 500,
+                          }}
+                        >
+                          vx-{activeWallp}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Wallpaper thumbnail grid */}
+                    <div
+                      className="wallpaper-scroll"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        flexWrap: 'nowrap',
+                        gap: '0.6rem',
+                        overflowX: 'auto',
+                        overflowY: 'hidden',
+                        paddingBottom: '0.2rem',
+                      }}
+                    >
+                      {WALLPAPER_IDS.filter((id) => id !== activeWallp).map((id) => (
+                        <Button
+                          key={id}
+                          onClick={() => handleWallpaperChange(id)}
+                          title={`vx-${id}`}
+                          type="text"
+                          style={{
+                            flex: '0 0 auto',
+                            width: '110px',
+                            padding: 0,
+                            border: '2px solid transparent',
+                            borderRadius: '10px',
                             overflow: 'hidden',
-                            border: `2px solid ${primaryColor}`,
-                            boxShadow: `0 0 0 4px ${primaryColor}20`,
+                            cursor: 'pointer',
+                            background: 'none',
+                            transition: 'border-color 0.2s, transform 0.2s',
+                            aspectRatio: '16 / 9',
+                            display: 'block',
                             position: 'relative',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = primaryColor
+                            e.currentTarget.style.transform = 'scale(1.04)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'transparent'
+                            e.currentTarget.style.transform = 'scale(1)'
                           }}
                         >
                           <img
-                            src={`/resources/vx-${activeWallp}.webp`}
-                            alt={`Wallpaper ${activeWallp}`}
+                            src={`/resources/vx-${id}.webp`}
+                            alt={`Wallpaper ${id}`}
                             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                           />
                           <div
                             style={{
                               position: 'absolute',
-                              bottom: '8px',
-                              right: '10px',
-                              background: 'rgba(0,0,0,0.55)',
-                              backdropFilter: 'blur(6px)',
+                              bottom: '4px',
+                              right: '5px',
+                              background: 'rgba(0,0,0,0.5)',
                               color: '#fff',
-                              fontSize: '0.75rem',
-                              padding: '0.2rem 0.5rem',
-                              borderRadius: '6px',
-                              fontWeight: 500,
+                              fontSize: '0.65rem',
+                              padding: '0.1rem 0.3rem',
+                              borderRadius: '4px',
                             }}
                           >
-                            vx-{activeWallp}
+                            vx-{id}
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Wallpaper thumbnail grid */}
-                      <div
-                        className="wallpaper-scroll"
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          flexWrap: 'nowrap',
-                          gap: '0.6rem',
-                          overflowX: 'auto',
-                          overflowY: 'hidden',
-                          paddingBottom: '0.2rem',
-                        }}
-                      >
-                        {WALLPAPER_IDS.filter((id) => id !== activeWallp).map((id) => (
-                          <Button
-                            key={id}
-                            onClick={() => handleWallpaperChange(id)}
-                            title={`vx-${id}`}
-                            type="text"
-                            style={{
-                              flex: '0 0 auto',
-                              width: '110px',
-                              padding: 0,
-                              border: '2px solid transparent',
-                              borderRadius: '10px',
-                              overflow: 'hidden',
-                              cursor: 'pointer',
-                              background: 'none',
-                              transition: 'border-color 0.2s, transform 0.2s',
-                              aspectRatio: '16 / 9',
-                              display: 'block',
-                              position: 'relative',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = primaryColor
-                              e.currentTarget.style.transform = 'scale(1.04)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = 'transparent'
-                              e.currentTarget.style.transform = 'scale(1)'
-                            }}
-                          >
-                            <img
-                              src={`/resources/vx-${id}.webp`}
-                              alt={`Wallpaper ${id}`}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                            />
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: '4px',
-                                right: '5px',
-                                background: 'rgba(0,0,0,0.5)',
-                                color: '#fff',
-                                fontSize: '0.65rem',
-                                padding: '0.1rem 0.3rem',
-                                borderRadius: '4px',
-                              }}
-                            >
-                              vx-{id}
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
+                        </Button>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
               {openApps.map((app) => (
                 <div key={app.key} style={{ display: activeWindowId === `app:${app.key}` ? 'block' : 'none', minHeight: '240px' }} />
               ))}

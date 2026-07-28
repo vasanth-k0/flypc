@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="flypc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d2ff"/>
+      <stop offset="50%" stop-color="#0297c4"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="wing-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0297c4"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <!-- Chevron Base Stand -->
+    <path d="M 206 385 L 256 415 L 306 385" 
+          fill="none" stroke="url(#flypc-grad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Left Wings -->
+    <path d="M 160 268 L 140 270 L 45 155" 
+          fill="none" stroke="url(#wing-grad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 145 305 L 125 305 L 75 235" 
+          fill="none" stroke="url(#wing-grad)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Right Wings -->
+    <path d="M 352 268 L 372 270 L 467 155" 
+          fill="none" stroke="url(#wing-grad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 367 305 L 387 305 L 437 235" 
+          fill="none" stroke="url(#wing-grad)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Central Display Monitor Box -->
+    <rect x="160" y="180" width="192" height="150" rx="16" ry="16"
+          fill="#0f172a" stroke="url(#flypc-grad)" stroke-width="16" />
+
+    <!-- Screen Inner Display -->
+    <rect x="178" y="198" width="156" height="114" rx="8" ry="8"
+          fill="#1e293b" />
+          
+    <!-- FlyPC Logo text inside display -->
+    <text x="256" y="268" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+          font-size="34" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1.5">FlyPC</text>
+  </g>
+</svg>

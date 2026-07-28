@@ -15,7 +15,6 @@ function App() {
   const layout = settingsState.ui
   const wallpaperUrl = `/resources/vx-${settingsState.wallp}.webp`
   const isDashboard = layout === 'dashboard'
-  const isHybrid = layout === 'hybrid-console'
 
   const screenStyle: React.CSSProperties = {
     position: 'fixed',
@@ -25,7 +24,7 @@ function App() {
     height: '100vh',
     overflow: 'hidden',
     background: '#ffffff',
-    padding: isHybrid ? '10px' : '0',
+    padding: '0',
     boxSizing: 'border-box',
   }
 
