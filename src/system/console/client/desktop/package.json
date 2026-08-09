@@ -2,9 +2,9 @@
   "name": "@flypc/desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "FlyPC desktop shell",
+  "description": "Flypc",
   "author": {
-    "name": "FlyPC",
+    "name": "Flypc",
     "email": "maintainers@flypc.in"
   },
   "homepage": "https://flypc.in",
@@ -14,6 +14,9 @@
     "dev:renderer": "vite --host 0.0.0.0 --port 5174",
     "dev": "concurrently -k \"npm run dev:renderer\" \"wait-on tcp:5174 && electron electron/main.cjs\"",
     "build": "vite build",
+    "package:linux:deb": "npm run build && rm -rf ../../../../../dist/apps/linux/* && electron-builder --config electron-builder.json --linux deb --publish never --config.directories.output=../../../../../dist/apps/linux",
+    "install:linux:deb": "set -e; DEB=$(find ../../../../../dist/apps/linux -maxdepth 1 -type f -name 'flypc-desktop-*.deb' -print0 | xargs -0 ls -t 2>/dev/null | head -n 1); if [ -z \"$DEB\" ]; then echo 'No deb found under dist/apps/linux'; exit 1; fi; sudo dpkg -r flypc-desktop flypc >/dev/null 2>&1 || true; sudo dpkg --purge flypc-desktop >/dev/null 2>&1 || true; sudo dpkg -i \"$DEB\"; sudo apt-get install -f -y; sudo dpkg --purge flypc-desktop >/dev/null 2>&1 || true",
+    "rebuild:install:linux": "npm run package:linux:deb && npm run install:linux:deb",
     "package:windows": "npm run build && electron-builder --config electron-builder.json --win portable nsis --publish never --config.directories.output=../../../../../dist/apps/windows",
     "package:linux": "npm run build && electron-builder --config electron-builder.json --linux deb rpm --publish never --config.directories.output=../../../../../dist/apps/linux"
   },

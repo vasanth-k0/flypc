@@ -18,12 +18,60 @@ body,
   height: 100%;
   overflow: hidden;
   background: transparent;
-  border-radius: 0;
+  border: 1px solid #e8eaed;
+  border-radius: 7px;
+  box-shadow: none;
 }
+
+.shell-root.is-dragging {
+  cursor: grabbing;
+}
+
+/* Full-screen transparent layer shown only while dragging.
+   Sits above the iframe so mousemove/mouseup aren’t swallowed
+   by the iframe content, but has no visual effect. */
+.drag-capture-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  cursor: grabbing;
+  pointer-events: none;
+}
+
+.drag-capture-overlay--active {
+  pointer-events: auto;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 
 .no-drag {
   -webkit-app-region: no-drag;
+  cursor: default;
 }
+
+/* Restore natural cursors on interactive children inside the draggable shell */
+.shell-root button,
+.shell-root input,
+.shell-root a,
+.shell-root select,
+.shell-root textarea,
+.shell-root [role='button'],
+.shell-root [role='switch'],
+.shell-root [role='slider'] {
+  cursor: pointer;
+}
+
+.shell-root input[type='text'],
+.shell-root input[type='search'],
+.shell-root textarea {
+  cursor: text;
+}
+
 
 .viewport-area {
   position: absolute;
@@ -35,6 +83,20 @@ body,
   height: 100%;
   border: none;
   background: white;
+}
+
+/* Transparent layer above the iframe that captures press-and-hold for window
+   drag. Quick clicks are forwarded to iframe content via sendInputEvent. */
+.iframe-drag-shim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  cursor: default;
+}
+
+.shell-root.is-dragging .iframe-drag-shim {
+  pointer-events: none;
 }
 
 .empty-state {
@@ -51,10 +113,10 @@ body,
 
 .sidebar-handle {
   position: absolute !important;
-  top: 112px;
+  bottom: 25px;
   left: 0;
   width: 46px !important;
-  height: 42px !important;
+  height: 35px !important;
   min-width: 46px !important;
   border: none !important;
   border-radius: 0 1rem 1rem 0 !important;
@@ -70,11 +132,12 @@ body,
 
 .sidebar-handle.ant-btn {
   width: 46px !important;
-  height: 42px !important;
+  height: 31px !important;
 }
 
 .sidebar-handle.open {
   left: 16px;
+  border-radius: 1rem 0 0 1rem !important;
 }
 
 .sidebar-handle:hover {
@@ -91,7 +154,7 @@ body,
 
 .sidebar-handle__bubble {
   position: absolute;
-  left: 16px;
+  left: 5px;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -99,7 +162,8 @@ body,
 }
 
 .sidebar-handle.open .sidebar-handle__bubble {
-  left: 9px;
+  left: 7px;
+  border-radius: 1rem 0 1rem 0 !important;
 }
 
 .sidebar-overlay {
@@ -111,22 +175,30 @@ body,
 
 .settings-panel {
   position: absolute;
-  inset: 0;
-  width: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 86vw);
+  max-width: 100%;
   height: 100%;
   background: rgba(245, 247, 250, 0.98);
   backdrop-filter: blur(18px);
   overflow: hidden;
-  transition: width 180ms ease, padding 180ms ease;
+  transition: transform 180ms ease, opacity 180ms ease, padding 180ms ease;
   z-index: 25;
-  padding: 0;
+  padding: 20px 18px 24px;
   display: flex;
   flex-direction: column;
+  box-shadow: -12px 0 36px rgba(15, 23, 42, 0.18);
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .settings-panel.open {
-  width: 100%;
-  padding: 20px 18px 24px;
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .settings-content {
@@ -199,12 +271,11 @@ body,
   margin-bottom: 24px;
 }
 
-.logo-circle {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  border: 3px solid #3e3e3e;
+.logo-wrap img {
+  display: block;
   margin: 0 auto;
+  object-fit: contain;
+  border-radius: 12px;
 }
 
 .logo-wrap p {
@@ -349,6 +420,7 @@ body,
   left: 16px;
   right: 16px;
   bottom: 16px;
+  z-index: 15;
   background: rgba(18, 18, 18, 0.86);
   color: #fff;
   padding: 12px;
@@ -403,5 +475,37 @@ body,
   border-radius: 6px;
   cursor: pointer;
   padding: 0 10px;
+}
+
+.flypc-offline-message {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.flypc-offline-message__card {
+  min-width: 260px;
+  max-width: min(86vw, 360px);
+  color: #1f2937;
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-align: center;
+  background: #ffffff;
+}
+
+.flypc-offline-message p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.flypc-offline-message p + p {
+  margin-top: 4px;
 }
 

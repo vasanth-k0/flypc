@@ -1,0 +1,18 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/mongodb",
+    "image": "docker.io/library/mongo:7",
+    "storageMount": "/data/db",
+    "mounts": [
+        "data",
+        "config"
+    ],
+    "ports": {
+        "db": 27017,
+        "users": {
+            "admin": 27017
+        }
+    }
+}

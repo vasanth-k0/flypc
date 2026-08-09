@@ -1,0 +1,8 @@
+{
+    "name": "Mongo DB",
+    "icon": "DatabaseFilled",
+    "description": "Personal MongoDB database container with isolated storage.",
+    "portDefaults": {
+        "admin": 27017
+    }
+}

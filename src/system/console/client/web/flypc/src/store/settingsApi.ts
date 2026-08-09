@@ -3,6 +3,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 export interface SettingsPayload {
   name: string
   ui: string
+  controlsSide?: 'left' | 'right'
   colorPalette: string
   gotoConsole: boolean
   defaultApp: string

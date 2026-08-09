@@ -1,9 +1,9 @@
 export class ColorPalette {
   static options = {
+    White:
+        ['#efefef', '#ffffff'],
     Geekblue: 
         ['#597ef7', '#85a5ff'],
-    Lime: 
-        ['#37d637', '#3ae43a'],
     Orange: 
         ['#efa04b', '#f7a854'],
     Green: 

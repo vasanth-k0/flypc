@@ -20,7 +20,7 @@ export interface AuthenticatedRequest extends Request {
   }
 }
 
-const toAuthUser = (req: AuthenticatedRequest): AuthenticatedUser | null => {
+export const resolveAuthUser = (req: AuthenticatedRequest): AuthenticatedUser | null => {
   if (req.auth?.id && req.auth.username && req.auth.role) {
     return {
       id: req.auth.id,
@@ -38,7 +38,7 @@ const toAuthUser = (req: AuthenticatedRequest): AuthenticatedUser | null => {
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   const typedReq = req as AuthenticatedRequest
-  const user = toAuthUser(typedReq)
+  const user = resolveAuthUser(typedReq)
 
   if (!user) {
     res.status(401).json({ error: 'Authentication required' })
@@ -51,7 +51,7 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction): vo
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
   const typedReq = req as AuthenticatedRequest
-  const user = typedReq.authUser ?? toAuthUser(typedReq)
+  const user = typedReq.authUser ?? resolveAuthUser(typedReq)
 
   if (!user) {
     res.status(401).json({ error: 'Authentication required' })

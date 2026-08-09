@@ -12,6 +12,7 @@
     "gotoConsole": true,
     "defaultApp": "coderun-lite",
     "wallp": 1,
+    "containerProgram": "docker",
     "env": {
         "type": "prod"
     }

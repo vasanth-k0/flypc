@@ -6,8 +6,9 @@
   "scripts": {
     "clean": "rm -rf dist ../../../../dist/be",
     "dev": "tsx watch src/index.ts",
-    "build": "npm run clean && tsc && cp src/settings.json ../../../../dist/be/settings.json && cp src/apps.json ../../../../dist/be/apps.json",
-    "watch": "npm run clean && tsc --watch",
+    "build": "npm run clean && tsc && mkdir -p ../../../../dist/be/helpers && cp src/settings.json ../../../../dist/be/settings.json && cp -R app ../../../../dist/be/app && cp app/apps.json ../../../../dist/be/apps.json && cp -R src/helpers/run ../../../../dist/be/helpers/run",
+    "watch": "tsx watch src/index.ts",
+    "watch:build": "tsc --watch",
     "start": "node ../../../../dist/be/index.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.cjs --runInBand"
   },

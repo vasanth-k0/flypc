@@ -1,0 +1,9 @@
+{
+    "name": "Open WebUI",
+    "icon": "RobotOutlined",
+    "description": "Browser UI for chatting with local LLMs through Ollama.",
+    "portDefaults": {
+        "admin": 7182,
+        "guest": 7186
+    }
+}

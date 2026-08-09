@@ -1,0 +1,32 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/open-webui",
+    "image": "ghcr.io/open-webui/open-webui:main",
+    "storageMount": "/app/backend/data",
+    "mounts": [
+        "data",
+        "config",
+        "workspace"
+    ],
+    "env": {
+        "OLLAMA_BASE_URL": "http://127.0.0.1:11434"
+    },
+    "dependencies": [
+        {
+            "key": "ollama",
+            "image": "ollama/ollama",
+            "storageMount": "/root/.ollama",
+            "mounts": [
+                "data"
+            ],
+            "ports": {
+                "api": 11434
+            }
+        }
+    ],
+    "ports": {
+        "http": 8080
+    }
+}

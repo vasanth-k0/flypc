@@ -1,6 +1,7 @@
 {
   "appId": "com.flypc.desktop",
-  "productName": "FlyPC Desktop",
+  "productName": "Flypc",
+  "icon": "build/icon.png",
   "artifactName": "flypc-desktop-${version}-${arch}.${ext}",
   "files": [
     "dist/**/*",

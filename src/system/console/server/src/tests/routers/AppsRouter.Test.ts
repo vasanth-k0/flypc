@@ -29,15 +29,15 @@ describe('AppsRouter', () => {
       expect.arrayContaining([
         expect.objectContaining({
           key: 'notepad',
-          name: 'Notepad',
+          name: 'Notes',
           icon: 'EditFilled',
           published: true,
         }),
         expect.objectContaining({
-          key: 'terminal',
-          name: 'Terminal',
-          icon: 'CodeFilled',
-          published: false,
+          key: 'coderun-lite',
+          name: 'Coderun-Lite',
+          icon: 'ThunderboltFilled',
+          published: true,
         }),
       ])
     )

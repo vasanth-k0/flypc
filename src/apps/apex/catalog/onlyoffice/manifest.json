@@ -1,0 +1,9 @@
+{
+    "name": "OnlyOffice",
+    "icon": "FileTextFilled",
+    "description": "Collaborative document editing with OnlyOffice Document Server.",
+    "portDefaults": {
+        "admin": 7172,
+        "guest": 7173
+    }
+}

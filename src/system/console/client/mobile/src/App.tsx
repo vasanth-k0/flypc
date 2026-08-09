@@ -230,7 +230,7 @@ const App: React.FC = () => {
 
         <div className="settings-content">
           <div className="logo-wrap">
-            <div className="logo-circle" />
+            <img className="logo-image" src="/logo.png" alt="FlyPC" width={110} height={110} />
             <p>FLYPC</p>
           </div>
 

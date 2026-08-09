@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OnlyOffice</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f5f7fb;
+      }
+
+      iframe {
+        border: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="onlyoffice-frame" title="OnlyOffice" src="about:blank"></iframe>
+    <script>
+      const params = new URLSearchParams(window.location.search)
+      const port = params.get('port')
+      if (port) {
+        document.getElementById('onlyoffice-frame').src = `http://127.0.0.1:${port}/`
+      }
+    </script>
+  </body>
+</html>

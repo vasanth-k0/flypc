@@ -3,8 +3,35 @@ import type { Request, Response } from 'express'
 import { getUserPreferencesPath, readBlueprint, writeBlueprint } from './TenantStorage.js'
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
 
+const defaultColorPalette = 'Geekblue'
+const colorPalettes = new Set([
+  'White',
+  defaultColorPalette,
+  'Orange',
+  'Green',
+  'Red',
+  'Purple',
+  'Teal',
+  'Brown',
+  'Gray',
+  'Black',
+  'Grey • Green',
+  'Grey • Blue',
+  'Grey • Teal',
+  'Grey • Brown',
+  'Black • Red',
+])
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const normalizeColorPalette = (value: unknown) =>
+  typeof value === 'string' && colorPalettes.has(value) ? value : defaultColorPalette
+
+const normalizeThemeSettings = (settings: Record<string, unknown>) => ({
+  ...settings,
+  colorPalette: normalizeColorPalette(settings.colorPalette),
+})
 
 export const updatePreferences = async (req: Request, res: Response): Promise<void> => {
   const typedReq = req as AuthenticatedRequest
@@ -26,10 +53,10 @@ export const updatePreferences = async (req: Request, res: Response): Promise<vo
     : JSON.stringify(readBlueprint())
 
   const current = JSON.parse(currentRaw) as Record<string, unknown>
-  const merged = {
+  const merged = normalizeThemeSettings({
     ...current,
     ...req.body,
-  }
+  })
 
   fs.writeFileSync(preferencesPath, JSON.stringify(merged, null, 2), 'utf8')
   res.json({ ok: true, preferences: merged })
@@ -41,8 +68,9 @@ export const updateSystemBlueprint = async (req: Request, res: Response): Promis
     return
   }
 
-  writeBlueprint(req.body)
-  res.json({ ok: true, blueprint: req.body })
+  const blueprint = normalizeThemeSettings(req.body)
+  writeBlueprint(blueprint)
+  res.json({ ok: true, blueprint })
 }
 
 export const getSystemSettings = async (req: Request, res: Response): Promise<void> => {
@@ -50,18 +78,18 @@ export const getSystemSettings = async (req: Request, res: Response): Promise<vo
   const username = typedReq.authUser?.username
 
   if (!username) {
-    res.json(readBlueprint())
+    res.json(normalizeThemeSettings(readBlueprint()))
     return
   }
 
   const preferencesPath = getUserPreferencesPath(username)
   if (!fs.existsSync(preferencesPath)) {
-    res.json(readBlueprint())
+    res.json(normalizeThemeSettings(readBlueprint()))
     return
   }
 
   const raw = fs.readFileSync(preferencesPath, 'utf8')
-  res.json(JSON.parse(raw) as Record<string, unknown>)
+  res.json(normalizeThemeSettings(JSON.parse(raw) as Record<string, unknown>))
 }
 
 export const getSystemTheme = async (req: Request, res: Response): Promise<void> => {
@@ -77,8 +105,8 @@ export const getSystemTheme = async (req: Request, res: Response): Promise<void>
     }
   }
 
-  const active = String(source.colorPalette ?? 'Geekblue')
-  res.json({ default: 'Geekblue', active })
+  const active = normalizeColorPalette(source.colorPalette)
+  res.json({ default: defaultColorPalette, active })
 }
 
 export const updateSystemSettingCompat = async (req: Request, res: Response): Promise<void> => {
@@ -94,10 +122,10 @@ export const updateSystemSettingCompat = async (req: Request, res: Response): Pr
   }
 
   const current = readBlueprint()
-  const next = {
+  const next = normalizeThemeSettings({
     ...current,
     [property]: value,
-  }
+  })
 
   writeBlueprint(next)
   res.json({ ok: true, property, value })

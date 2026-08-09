@@ -6,7 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { UniqueConstraintError, ValidationError } from 'sequelize'
 import { UserModel } from '../db/models/User.model.js'
-import { getUserHomePath, removeUserStorage, provisionUserStorage } from './TenantStorage.js'
+import { getUserHomePath, removeUserStorage, provisionUserStorage, ensureUserAppsStorageOnLogin } from './TenantStorage.js'
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
 
 const jwtSecret = process.env.JWT_SECRET ?? 'flypc-jwt-secret'
@@ -115,6 +115,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     })
 
     provisionUserStorage(username)
+    ensureUserAppsStorageOnLogin(username)
 
     res.status(201).json({ ok: true, user: sanitizeUser(createdUser) })
   } catch (error) {
@@ -176,6 +177,8 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     username: user.username,
     role: user.role,
   }
+
+  ensureUserAppsStorageOnLogin(user.username)
 
   res.json({ ok: true, token, user: sanitizeUser(user) })
 }

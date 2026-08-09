@@ -6,6 +6,7 @@ import csrf from 'csurf';
 import { expressjwt } from 'express-jwt';
 import config from './lib/Config.js';
 import appsRouter from './routers/AppsRouter.js';
+import filesRouter from './routers/FilesRouter.js';
 import { initializeDatabase } from './db/index.js';
 
 const app = express();
@@ -18,7 +19,7 @@ const frontendPublicPath = path.resolve(process.cwd(), '../client/web/flypc/publ
 const indexFilePath = path.join(frontendDistPath, 'index.html');
 const currentFile = fileURLToPath(import.meta.url);
 const shouldEnableCsrf = process.env.ENABLE_CSRF === 'true';
-const csrfExcludedPrefixes = ['/user', '/settings', '/system', '/apps', '/auth/csrf-token'];
+const csrfExcludedPrefixes = ['/user', '/settings', '/system', '/apps', '/files', '/auth/csrf-token'];
 const localhostOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const allowedCorsOrigins = (process.env.CORS_ORIGINS ?? '')
   .split(',')
@@ -88,6 +89,7 @@ if (shouldEnableCsrf) {
 }
 
 app.use(appsRouter);
+app.use(filesRouter);
 app.use('/resources', express.static(path.join(frontendDistPath, 'resources')));
 app.use('/resources', express.static(path.join(frontendPublicPath, 'resources')));
 app.use(express.static(frontendDistPath));

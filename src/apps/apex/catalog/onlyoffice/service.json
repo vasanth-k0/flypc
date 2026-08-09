@@ -1,0 +1,23 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/onlyoffice",
+    "image": "onlyoffice/documentserver",
+    "storageMount": "/var/www/onlyoffice/Data",
+    "mounts": [
+        "data",
+        "config",
+        "workspace"
+    ],
+    "env": {
+        "JWT_ENABLED": "false"
+    },
+    "ports": {
+        "http": 80,
+        "users": {
+            "admin": 7172,
+            "guest": 7173
+        }
+    }
+}

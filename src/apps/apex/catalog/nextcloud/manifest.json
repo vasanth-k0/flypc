@@ -1,0 +1,9 @@
+{
+    "name": "Nextcloud",
+    "icon": "CloudFilled",
+    "description": "Self-hosted file sync, sharing, and collaboration workspace.",
+    "portDefaults": {
+        "admin": 7181,
+        "guest": 7185
+    }
+}

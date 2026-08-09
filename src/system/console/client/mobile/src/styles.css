@@ -166,12 +166,13 @@ body,
   margin-bottom: 24px;
 }
 
-.logo-circle {
+.logo-image {
+  display: block;
   width: 96px;
   height: 96px;
-  border-radius: 50%;
-  border: 3px solid #3e3e3e;
   margin: 0 auto;
+  object-fit: contain;
+  border-radius: 12px;
 }
 
 .logo-wrap p {

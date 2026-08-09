@@ -1,0 +1,10 @@
+{
+    "type": "daemon",
+    "readonly": true,
+    "autorun": false,
+    "dir": "src/apps/terminal",
+    "image": false,
+    "ports": {
+        "tty": 7171
+    }
+}

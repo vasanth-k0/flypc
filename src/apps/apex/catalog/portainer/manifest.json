@@ -1,0 +1,9 @@
+{
+    "name": "Portainer",
+    "icon": "CloudServerOutlined",
+    "description": "Lightweight Docker container management UI for stacks, images, volumes, and networks.",
+    "portDefaults": {
+        "admin": 7180,
+        "guest": 7184
+    }
+}

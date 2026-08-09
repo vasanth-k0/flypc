@@ -2,11 +2,12 @@ import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { settingsApi } from './settingsApi'
 
-export type LayoutMode = 'desktop' | 'dashboard' | 'hybrid-console'
+export type LayoutMode = 'desktop' | 'dashboard' | 'hybrid-console' | 'sharp' | 'web'
 
 export interface SettingsState {
   name: string
   ui: LayoutMode
+  controlsSide: 'left' | 'right'
   colorPalette: string
   gotoConsole: boolean
   defaultApp: string
@@ -17,6 +18,7 @@ export interface SettingsState {
 const initialState: SettingsState = {
   name: 'FlyPC',
   ui: 'desktop',
+  controlsSide: 'right',
   colorPalette: 'Geekblue',
   gotoConsole: true,
   defaultApp: 'coderun-lite',
@@ -28,6 +30,10 @@ const normalizeLayout = (value?: string): LayoutMode => {
   switch (value?.toLowerCase()) {
     case 'dashboard':
       return 'dashboard'
+    case 'sharp':
+      return 'sharp'
+    case 'web':
+      return 'web'
     case 'hybrid-console':
     case 'hybrid_console':
       return 'hybrid-console'
@@ -44,6 +50,9 @@ const settingsSlice = createSlice({
     setLayoutMode(state, action: PayloadAction<LayoutMode>) {
       state.ui = action.payload
     },
+    setControlsSide(state, action: PayloadAction<'left' | 'right'>) {
+      state.controlsSide = action.payload
+    },
     setWallpaper(state, action: PayloadAction<number>) {
       state.wallp = action.payload
     },
@@ -52,6 +61,7 @@ const settingsSlice = createSlice({
     builder.addMatcher(settingsApi.endpoints.getSettings.matchFulfilled, (state, action) => {
       state.name = String(action.payload.name ?? state.name)
       state.ui = normalizeLayout(String(action.payload.ui ?? state.ui))
+      state.controlsSide = action.payload.controlsSide === 'left' ? 'left' : 'right'
       state.colorPalette = String(action.payload.colorPalette ?? state.colorPalette)
       state.gotoConsole = Boolean(action.payload.gotoConsole ?? state.gotoConsole)
       state.defaultApp = String(action.payload.defaultApp ?? state.defaultApp)
@@ -61,5 +71,5 @@ const settingsSlice = createSlice({
   },
 })
 
-export const { setLayoutMode, setWallpaper } = settingsSlice.actions
+export const { setLayoutMode, setControlsSide, setWallpaper } = settingsSlice.actions
 export default settingsSlice.reducer

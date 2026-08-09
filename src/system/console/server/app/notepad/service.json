@@ -1,0 +1,11 @@
+{
+    "type": "run-once",
+    "readonly": false,
+    "dir": "src/apps/notepad",
+    "actions": {
+        "create": "",
+        "read": "",
+        "update": "",
+        "delete": ""
+    }
+}

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button, Input, Switch } from 'antd'
 import {
+  CloseCircleOutlined,
   CloseOutlined,
   DeleteOutlined,
   PlusOutlined,
@@ -27,7 +28,28 @@ declare global {
       closeWindow: () => Promise<void>
       setOrientation: (orientation: 'portrait' | 'landscape') => Promise<void>
       toggleFullScreen: () => Promise<boolean>
+      dragMove: (dx: number, dy: number) => void
+      clickAt: (x: number, y: number) => Promise<void>
     }
+  }
+}
+
+const DRAG_HOLD_MS = 300
+const DRAG_MOVE_START_PX = 6
+const DRAG_MIN_HOLD_BEFORE_MOVE_MS = 120
+
+const isFlypcEndpointUrl = (endpoint: string): boolean => {
+  const raw = endpoint.trim()
+  if (!raw) {
+    return false
+  }
+
+  try {
+    const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    const host = new URL(normalized).hostname.toLowerCase()
+    return host === 'flypc.in' || host === 'www.flypc.in'
+  } catch {
+    return /(^|:\/\/)(www\.)?flypc\.in(\/|$)/i.test(raw)
   }
 }
 
@@ -44,6 +66,190 @@ const App: React.FC = () => {
 
   const activeEntry = endpoints.find((entry) => entry.active)
   const activeEndpoint = activeEntry?.url || ''
+  const isActiveFlypcEndpoint = isFlypcEndpointUrl(activeEndpoint)
+  const showFlypcOfflineMessage = Boolean(
+    isActiveFlypcEndpoint
+    && activeEntry?.status === 'offline'
+  )
+
+  const shellRef = React.useRef<HTMLDivElement>(null)
+  const dragOverlayRef = React.useRef<HTMLDivElement>(null)
+
+  // Manual IPC drag — CSS -webkit-app-region: drag is broken on Linux with
+  // transparent + GPU-disabled frameless windows. Press-and-hold (or hold then
+  // move) starts drag; quick taps on the iframe shim forward clicks via IPC.
+  React.useEffect(() => {
+    const shell = shellRef.current
+    if (!shell || !window.flypcDesktop) return
+
+    let dragging = false
+    let pendingHold = false
+    let holdTimer: ReturnType<typeof setTimeout> | null = null
+    let holdStartTime = 0
+    let holdStartX = 0
+    let holdStartY = 0
+    let clickClientX = 0
+    let clickClientY = 0
+    let startedOnShim = false
+    let captureElement: HTMLElement | null = null
+    let activePointerId: number | null = null
+    let lastX = 0
+    let lastY = 0
+
+    const clearHoldTimer = () => {
+      if (holdTimer !== null) {
+        clearTimeout(holdTimer)
+        holdTimer = null
+      }
+    }
+
+    const activateDragCapture = () => {
+      dragOverlayRef.current?.classList.add('drag-capture-overlay--active')
+      shell.classList.add('is-dragging')
+    }
+
+    const deactivateDragCapture = () => {
+      dragOverlayRef.current?.classList.remove('drag-capture-overlay--active')
+      shell.classList.remove('is-dragging')
+    }
+
+    const isAlwaysInteractive = (target: EventTarget | null): boolean => {
+      let el = target as HTMLElement | null
+      while (el && el !== shell) {
+        const tag = el.tagName?.toLowerCase()
+        if (
+          tag === 'button' ||
+          tag === 'input' ||
+          tag === 'a' ||
+          tag === 'select' ||
+          tag === 'textarea' ||
+          el.getAttribute('role') === 'button' ||
+          el.getAttribute('role') === 'slider' ||
+          el.getAttribute('role') === 'switch' ||
+          el.classList.contains('no-drag') ||
+          el.getAttribute('draggable') === 'true'
+        ) {
+          return true
+        }
+        el = el.parentElement
+      }
+      return false
+    }
+
+    const isShimTarget = (target: EventTarget | null): boolean =>
+      (target as HTMLElement | null)?.classList?.contains('iframe-drag-shim') ?? false
+
+    const releaseCapturedPointer = () => {
+      if (captureElement && activePointerId !== null) {
+        try {
+          captureElement.releasePointerCapture(activePointerId)
+        } catch {
+          // pointer may already be released
+        }
+      }
+      captureElement = null
+      activePointerId = null
+    }
+
+    const startDrag = (screenX: number, screenY: number) => {
+      if (dragging) return
+      dragging = true
+      pendingHold = false
+      clearHoldTimer()
+      lastX = screenX
+      lastY = screenY
+      activateDragCapture()
+    }
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return
+      if (isAlwaysInteractive(e.target)) return
+
+      pendingHold = true
+      dragging = false
+      startedOnShim = isShimTarget(e.target)
+      holdStartTime = Date.now()
+      holdStartX = e.screenX
+      holdStartY = e.screenY
+      clickClientX = e.clientX
+      clickClientY = e.clientY
+      activePointerId = e.pointerId
+      captureElement = startedOnShim ? (e.target as HTMLElement) : shell
+
+      try {
+        captureElement.setPointerCapture(e.pointerId)
+      } catch {
+        captureElement = null
+        activePointerId = null
+      }
+
+      clearHoldTimer()
+      holdTimer = setTimeout(() => {
+        holdTimer = null
+        if (pendingHold && !dragging) {
+          startDrag(holdStartX, holdStartY)
+        }
+      }, DRAG_HOLD_MS)
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (dragging) {
+        const dx = e.screenX - lastX
+        const dy = e.screenY - lastY
+        if (dx !== 0 || dy !== 0) {
+          lastX = e.screenX
+          lastY = e.screenY
+          window.flypcDesktop?.dragMove(dx, dy)
+        }
+        return
+      }
+
+      if (!pendingHold) return
+
+      const elapsed = Date.now() - holdStartTime
+      const distance = Math.hypot(e.screenX - holdStartX, e.screenY - holdStartY)
+      if (elapsed >= DRAG_MIN_HOLD_BEFORE_MOVE_MS && distance >= DRAG_MOVE_START_PX) {
+        startDrag(e.screenX, e.screenY)
+      }
+    }
+
+    const onPointerUp = () => {
+      const wasPendingHold = pendingHold && !dragging
+      const wasOnShim = startedOnShim
+
+      clearHoldTimer()
+      pendingHold = false
+      startedOnShim = false
+
+      if (dragging) {
+        dragging = false
+        deactivateDragCapture()
+      }
+
+      releaseCapturedPointer()
+
+      if (wasPendingHold && wasOnShim) {
+        void window.flypcDesktop?.clickAt(clickClientX, clickClientY)
+      }
+    }
+
+    shell.addEventListener('pointerdown', onPointerDown)
+    shell.addEventListener('pointermove', onPointerMove)
+    shell.addEventListener('pointerup', onPointerUp)
+    shell.addEventListener('pointercancel', onPointerUp)
+
+    return () => {
+      clearHoldTimer()
+      pendingHold = false
+      dragging = false
+      deactivateDragCapture()
+      releaseCapturedPointer()
+      shell.removeEventListener('pointerdown', onPointerDown)
+      shell.removeEventListener('pointermove', onPointerMove)
+      shell.removeEventListener('pointerup', onPointerUp)
+      shell.removeEventListener('pointercancel', onPointerUp)
+    }
+  }, [])
 
   React.useEffect(() => {
     const urls = endpoints.map((entry) => entry.url)
@@ -158,6 +364,7 @@ const App: React.FC = () => {
   }
 
   const onReloadApp = () => {
+    dispatch(closePanel())
     setIframeRevision((current) => current + 1)
   }
 
@@ -179,7 +386,8 @@ const App: React.FC = () => {
   }, [activeEndpoint, dispatch, endpoints])
 
   return (
-    <div className="shell-root">
+    <div className="shell-root" ref={shellRef}>
+      <div ref={dragOverlayRef} className="drag-capture-overlay" aria-hidden="true" />
       <Button
         className={`sidebar-handle no-drag ${panelOpen ? 'open' : ''}`}
         onClick={() => dispatch(panelOpen ? closePanel() : togglePanel())}
@@ -188,37 +396,52 @@ const App: React.FC = () => {
         type="text"
         shape="circle"
         style={{ background: titleBarColor }}
-        icon={panelOpen ? <CloseOutlined className="sidebar-handle__icon" /> : <SettingOutlined className="sidebar-handle__icon" />}
-      >
-        <span className="sidebar-handle__bubble" />
-      </Button>
+        icon={panelOpen ? <CloseCircleOutlined className="sidebar-handle__icon" /> : <SettingOutlined className="sidebar-handle__icon" />}
+      />
 
       {panelOpen && <div className="sidebar-overlay" onClick={() => dispatch(closePanel())} />}
 
       <main className="viewport-area">
         {activeEndpoint ? (
           <>
-            <iframe
-              key={`${activeEndpoint}-${iframeRevision}`}
-              className="shell-viewport"
-              src={activeEndpoint}
-              title="FlyPC viewport"
-              sandbox="allow-scripts allow-same-origin allow-forms"
-              onLoad={() => {
-                fallbackVisitedRef.current.clear()
-                setIframeLoaded(true)
-                setShowLoadHint(false)
-              }}
-              onError={() => {
-                setIframeLoaded(false)
-                setDismissedHint(false)
-                if (tryFallbackEndpoint()) {
-                  return
-                }
-                setShowLoadHint(true)
-              }}
-            />
-            {showLoadHint && !dismissedHint && (
+            {!showFlypcOfflineMessage && (
+              <>
+                <iframe
+                  key={`${activeEndpoint}-${iframeRevision}`}
+                  className="shell-viewport"
+                  src={activeEndpoint}
+                  title="FlyPC viewport"
+                  sandbox="allow-scripts allow-same-origin allow-forms"
+                  onLoad={() => {
+                    fallbackVisitedRef.current.clear()
+                    setIframeLoaded(true)
+                    setShowLoadHint(false)
+                  }}
+                  onError={() => {
+                    setIframeLoaded(false)
+                    setDismissedHint(false)
+                    if (isActiveFlypcEndpoint) {
+                      setShowLoadHint(true)
+                      return
+                    }
+                    if (tryFallbackEndpoint()) {
+                      return
+                    }
+                    setShowLoadHint(true)
+                  }}
+                />
+                <div className="iframe-drag-shim" aria-hidden="true" />
+              </>
+            )}
+            {showFlypcOfflineMessage && (
+              <div className="flypc-offline-message">
+                <div className="flypc-offline-message__card">
+                  <p>Flypc is offline.</p>
+                  <p>Switch to other endpoints</p>
+                </div>
+              </div>
+            )}
+            {showLoadHint && !dismissedHint && !showFlypcOfflineMessage && (
               <div className="viewport-hint no-drag">
                 <Button
                   className="viewport-hint__close"
@@ -264,15 +487,6 @@ const App: React.FC = () => {
                 shape="circle"
                 icon={<ReloadOutlined />}
               />
-              <Button
-                className="settings-toolbar__button no-drag"
-                onClick={() => dispatch(closePanel())}
-                aria-label="Hide settings"
-                title="Hide Settings"
-                type="text"
-                shape="circle"
-                icon={<CloseOutlined />}
-              />
             </div>
           </div>
 
@@ -303,7 +517,10 @@ const App: React.FC = () => {
               <div key={entry.url} className="endpoint-row">
                 <Button
                   className="endpoint-main no-drag"
-                  onClick={() => dispatch(setActiveEndpoint(entry.url))}
+                  onClick={() => {
+                    dispatch(setActiveEndpoint(entry.url))
+                    dispatch(closePanel())
+                  }}
                   type="text"
                 >
                   <span className={`dot ${entry.status}`} />

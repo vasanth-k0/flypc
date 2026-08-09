@@ -7,8 +7,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/apps': 'http://localhost:3000',
+      '/files': 'http://localhost:3000',
       '/user': 'http://localhost:3000',
       '/settings': 'http://localhost:3000',
+      '/system': 'http://localhost:3000',
       '/auth': 'http://localhost:3000',
       '/resources': 'http://localhost:3000',
     },
