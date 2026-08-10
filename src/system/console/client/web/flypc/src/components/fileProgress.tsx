@@ -1,4 +1,3 @@
-import React from 'react'
 import { Progress, notification } from 'antd'
 
 type ProgressReporter = (percent: number, detail?: string) => void

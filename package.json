@@ -31,6 +31,10 @@
     "package:mobile:ios": "npm run build:ios -w @flypc/mobile",
     "build:apps": "npm run package:desktop:windows && npm run package:desktop:linux && npm run package:mobile:android && npm run package:mobile:ios",
     "start": "npm run start -w @flypc/server",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
     "test": "npm run test -w @flypc/server && npm run test -w @flypc/web"
   },
   "devDependencies": {

@@ -49,7 +49,12 @@ export class LocalFileManager {
       throw new Error('Local folder access is not supported in this browser')
     }
 
-    const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+    const picker = window.showDirectoryPicker
+    if (!picker) {
+      throw new Error('Local folder access is not supported in this browser')
+    }
+
+    const handle = await picker({ mode: 'readwrite' })
     this.rootHandle = handle
     this.rootLabel = handle.name
     return true

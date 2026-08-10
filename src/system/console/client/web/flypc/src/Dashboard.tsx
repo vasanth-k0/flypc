@@ -9,6 +9,7 @@ import { useUpdateSettingMutation } from './store/settingsApi'
 import { AppWindow } from './components/AppWindow'
 import { FileExplorer } from './components/FileExplorer'
 import { NativeWindowContent } from './components/NativeWindowContent'
+import { DomainManager } from './components/DomainManager'
 import { WebAppCards } from './components/WebAppCards'
 import { MdClose, MdMinimize } from 'react-icons/md'
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
@@ -21,6 +22,7 @@ import {
   ThunderboltFilled,
   FileTextFilled,
   DatabaseFilled,
+  InfoCircleFilled,
   SettingOutlined,
   FolderOpenOutlined,
   ThunderboltOutlined,
@@ -84,6 +86,7 @@ const APP_ICON_MAP: Record<string, React.ReactNode> = {
   ThunderboltFilled: <ThunderboltFilled style={{ color: '#334155' }} />,
   DatabaseFilled: <DatabaseFilled style={{ color: '#334155' }} />,
   FileTextFilled: <FileTextFilled style={{ color: '#334155' }} />,
+  InfoCircleFilled: <InfoCircleFilled style={{ color: '#334155' }} />,
   AppstoreOutlined: <AppstoreOutlined style={{ color: '#334155' }} />,
 }
 
@@ -1565,11 +1568,7 @@ const Dashboard: React.FC = () => {
                       />
                     </label>
                     <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                      <Button
-                        onClick={handleLoginRequest}
-                        type="primary"
-                        style={{ padding: '0.55rem 0.9rem', borderRadius: '8px', border: 'none', background: primaryColor, color: '#fff', cursor: 'pointer' }}
-                      >
+                      <Button onClick={handleLoginRequest} type="primary">
                         Login
                       </Button>
                     </div>
@@ -1587,11 +1586,7 @@ const Dashboard: React.FC = () => {
                         onChange={(event) => setChangeNameValue(event.target.value)}
                         style={{ width: '100%', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
                       />
-                      <Button
-                        onClick={handleChangeName}
-                        type="primary"
-                        style={{ width: 'fit-content', padding: '0.5rem 0.85rem', borderRadius: '8px', border: 'none', background: secondaryColor, color: '#fff', cursor: 'pointer' }}
-                      >
+                      <Button onClick={handleChangeName} type="primary">
                         Update Name
                       </Button>
                     </div>
@@ -1610,11 +1605,7 @@ const Dashboard: React.FC = () => {
                         onChange={(event) => setNewPassword(event.target.value)}
                         style={{ width: '100%', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
                       />
-                      <Button
-                        onClick={handleResetPassword}
-                        type="primary"
-                        style={{ width: 'fit-content', padding: '0.5rem 0.85rem', borderRadius: '8px', border: 'none', background: secondaryColor, color: '#fff', cursor: 'pointer' }}
-                      >
+                      <Button onClick={handleResetPassword} type="primary">
                         Reset Password
                       </Button>
                     </div>
@@ -1688,8 +1679,20 @@ const Dashboard: React.FC = () => {
               <NativeWindowContent isActive={activeWindowId === 'settings'}>
                 <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>System Configuration</h2>
                 <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                  Manage the interface layout and color themes in real-time.
+                  Manage domain registration, HTTPS certificates, interface layout, and color themes.
                 </p>
+
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
+                    Domain Manager
+                  </h3>
+                  <DomainManager
+                    isAdmin={authUser?.role === 'Admin'}
+                    authToken={authToken}
+                    primaryColor={primaryColor}
+                    onSetupComplete={() => handleLayoutModeChange('desktop')}
+                  />
+                </div>
 
                 {/* Layout Mode Toggles */}
                 <div style={{ marginBottom: '1.25rem' }}>

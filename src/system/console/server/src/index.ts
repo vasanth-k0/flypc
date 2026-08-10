@@ -10,12 +10,17 @@ import filesRouter from './routers/FilesRouter.js';
 import { initializeDatabase } from './db/index.js';
 
 const app = express();
+app.set('trust proxy', 1);
 const appConfig = config.getAll();
 const port = appConfig.port || process.env.PORT || 3000;
 const jwtSecret = process.env.JWT_SECRET || 'flypc-jwt-secret';
 const sessionSecret = process.env.SESSION_SECRET || 'flypc-session-secret';
-const frontendDistPath = path.resolve(process.cwd(), '../../../../dist/fe');
-const frontendPublicPath = path.resolve(process.cwd(), '../client/web/flypc/public');
+const frontendDistPath = process.env.FLYPC_FE_DIST
+  ? path.resolve(process.env.FLYPC_FE_DIST)
+  : path.resolve(process.cwd(), '../../../../dist/fe');
+const frontendPublicPath = process.env.FLYPC_FE_PUBLIC
+  ? path.resolve(process.env.FLYPC_FE_PUBLIC)
+  : path.resolve(process.cwd(), '../client/web/flypc/public');
 const indexFilePath = path.join(frontendDistPath, 'index.html');
 const currentFile = fileURLToPath(import.meta.url);
 const shouldEnableCsrf = process.env.ENABLE_CSRF === 'true';

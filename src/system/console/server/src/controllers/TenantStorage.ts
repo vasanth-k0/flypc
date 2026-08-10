@@ -19,6 +19,21 @@ const defaultBlueprint = {
   defaultApp: 'coderun-lite',
   wallp: 1,
   containerProgram: 'docker',
+  rhostDomain: {
+    brandOwner: 'flypc',
+    productName: 'RHost',
+    baseDomain: 'localhost',
+    accountSlug: 'demo',
+    nodeRole: 'standalone',
+    nodeId: '',
+    publicHost: 'localhost',
+    adminEmail: 'admin@flypc.in',
+    sslMode: 'internal',
+    sslStatus: 'pending',
+    sslMessage: 'Complete Domain Manager setup to enable HTTPS',
+    httpsEnabled: true,
+    initialSetupComplete: false,
+  },
 }
 
 const isProvisioningEnabled = (): boolean => process.env.ENABLE_SYSTEM_PROVISIONING === 'true'

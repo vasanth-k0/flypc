@@ -34,6 +34,8 @@ describe('SettingsRouter', () => {
     process.env.DISABLE_CSRF = 'true'
     process.env.JWT_SECRET = 'test-jwt-secret'
     process.env.SESSION_SECRET = 'test-session-secret'
+    process.env.RHOST_DATA_ROOT = path.join(tempRoot, 'rhost-data')
+    process.env.CADDYFILE_PATH = path.join(tempRoot, 'rhost-data', 'caddy', 'Caddyfile')
 
     const [{ initializeDatabase }, { default: AppsRouter }] = await Promise.all([
       import('../../db/index.js'),
@@ -60,7 +62,7 @@ describe('SettingsRouter', () => {
       })
     )
     app.use(AppsRouter)
-  })
+  }, 30000)
 
   afterAll(() => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
@@ -130,5 +132,37 @@ describe('SettingsRouter', () => {
     expect(response.status).toBe(200)
     expect(response.body.ok).toBe(true)
     expect(response.body.blueprint).toEqual(payload)
+  })
+
+  it('returns domain config with flypc defaults', async () => {
+    const response = await request(app).get('/system/domain')
+    expect(response.status).toBe(200)
+    expect(response.body.ok).toBe(true)
+    expect(response.body.domain.brandOwner).toBe('flypc')
+    expect(response.body.domain.baseDomain).toBe('localhost')
+  })
+
+  it('allows admin to update domain and complete initial setup', async () => {
+    const adminToken = await loginAndGetToken('admin', 'Admin@123')
+    const caddyPath = path.join(tempRoot, 'domain-caddy', 'Caddyfile')
+    process.env.RHOST_DATA_ROOT = path.join(tempRoot, 'domain-caddy')
+    process.env.CADDYFILE_PATH = caddyPath
+
+    const response = await request(app)
+      .put('/system/domain')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        brandOwner: 'flypc',
+        baseDomain: 'localhost',
+        accountSlug: 'demo',
+        sslMode: 'internal',
+        completeInitialSetup: true,
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body.ok).toBe(true)
+    expect(response.body.domain.initialSetupComplete).toBe(true)
+    expect(response.body.domain.sslStatus).toBe('active')
+    expect(fs.existsSync(caddyPath)).toBe(true)
   })
 })
