@@ -99,7 +99,7 @@ describe('ApexService', () => {
     const { apexService } = await import('../../services/ApexService.js')
     const { loadAppsCatalog } = await import('../../services/AppsCatalog.js')
     const { readInstalledServiceDefinition } = await import('../../lib/ApexCatalog.js')
-    const { getUserAppStoragePath } = await import('../../controllers/TenantStorage.js')
+    const { getUserAppStoragePath } = await import('../../services/storage/TenantStorage.js')
 
     const installed = await apexService.installApp('admin', 'jellyfin')
 
@@ -125,7 +125,7 @@ describe('ApexService', () => {
   it('uninstalls an app for the current user and removes storage', async () => {
     setupTempStore()
     const { apexService } = await import('../../services/ApexService.js')
-    const { getUserAppStoragePath } = await import('../../controllers/TenantStorage.js')
+    const { getUserAppStoragePath } = await import('../../services/storage/TenantStorage.js')
 
     await apexService.installApp('admin', 'jellyfin')
     const storagePath = getUserAppStoragePath('admin', 'jellyfin')

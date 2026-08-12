@@ -1,3 +1,5 @@
+import { apiFetch } from '../services/apiClient'
+
 export type AppRuntimeStatus = 'running' | 'stopped' | 'missing' | 'not-containerized'
 
 export type AppRuntime = {
@@ -9,38 +11,6 @@ export type AppRuntime = {
   ports: Record<string, number>
   url: string | null
   detail?: string
-}
-
-const buildAuthHeaders = (init?: RequestInit): Headers => {
-  const headers = new Headers(init?.headers ?? {})
-  if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json')
-  }
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json')
-  }
-
-  const authToken = window.localStorage.getItem('flypc-auth-token')
-  if (authToken && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${authToken}`)
-  }
-
-  return headers
-}
-
-const apiFetch = async <T>(url: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...init,
-    headers: buildAuthHeaders(init),
-  })
-
-  const payload = (await response.json()) as T & { error?: string; detail?: string }
-  if (!response.ok) {
-    throw new Error(payload.detail ?? payload.error ?? `Request failed: ${response.status}`)
-  }
-
-  return payload
 }
 
 export class App {

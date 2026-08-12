@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import type { Request, Response } from 'express'
-import { getUserPreferencesPath, readBlueprint, writeBlueprint } from './TenantStorage.js'
+import { getUserPreferencesPath, readBlueprint, writeBlueprint } from '../services/storage/TenantStorage.js'
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
 
 const defaultColorPalette = 'Geekblue'

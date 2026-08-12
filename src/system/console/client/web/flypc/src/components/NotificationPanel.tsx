@@ -1,5 +1,6 @@
 import React from 'react'
 import { MailOutlined } from '@ant-design/icons'
+import { apiFetch } from '../services/apiClient'
 
 export type NotificationItem = {
   id: string
@@ -19,14 +20,6 @@ type NotificationPanelProps = {
   compact?: boolean
   iconColor: string
   primaryColor: string
-}
-
-const buildAuthHeaders = (authToken: string): Headers => {
-  const headers = new Headers({ Accept: 'application/json', 'Content-Type': 'application/json' })
-  if (authToken) {
-    headers.set('Authorization', `Bearer ${authToken}`)
-  }
-  return headers
 }
 
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({
@@ -50,15 +43,11 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
     }
 
     try {
-      const response = await fetch('/user/notifications', { headers: buildAuthHeaders(authToken) })
-      const payload = (await response.json()) as {
+      const payload = await apiFetch<{
         ok: boolean
         notifications: NotificationItem[]
         unreadCount: number
-      }
-      if (!response.ok) {
-        return
-      }
+      }>('/user/notifications', undefined, { token: authToken })
       setNotifications(payload.notifications ?? [])
       setUnreadCount(payload.unreadCount ?? 0)
     } catch {
@@ -107,40 +96,34 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   }, [open])
 
   const markRead = async (id: string): Promise<void> => {
-    const response = await fetch(`/user/notifications/${encodeURIComponent(id)}/read`, {
-      method: 'PATCH',
-      headers: buildAuthHeaders(authToken),
-    })
-    const payload = (await response.json()) as { unreadCount: number; notifications?: NotificationItem[] }
-    if (response.ok) {
-      setUnreadCount(payload.unreadCount ?? 0)
-      await loadNotifications()
-    }
+    const payload = await apiFetch<{ unreadCount: number; notifications?: NotificationItem[] }>(
+      `/user/notifications/${encodeURIComponent(id)}/read`,
+      { method: 'PATCH' },
+      { token: authToken },
+    )
+    setUnreadCount(payload.unreadCount ?? 0)
+    await loadNotifications()
   }
 
   const markHeld = async (id: string): Promise<void> => {
-    const response = await fetch(`/user/notifications/${encodeURIComponent(id)}/hold`, {
-      method: 'PATCH',
-      headers: buildAuthHeaders(authToken),
-    })
-    const payload = (await response.json()) as { unreadCount: number }
-    if (response.ok) {
-      setUnreadCount(payload.unreadCount ?? 0)
-      await loadNotifications()
-    }
+    const payload = await apiFetch<{ unreadCount: number }>(
+      `/user/notifications/${encodeURIComponent(id)}/hold`,
+      { method: 'PATCH' },
+      { token: authToken },
+    )
+    setUnreadCount(payload.unreadCount ?? 0)
+    await loadNotifications()
   }
 
   const closePanel = async (): Promise<void> => {
     setOpen(false)
-    const response = await fetch('/user/notifications/read-all', {
-      method: 'POST',
-      headers: buildAuthHeaders(authToken),
-    })
-    const payload = (await response.json()) as { unreadCount: number; notifications: NotificationItem[] }
-    if (response.ok) {
-      setUnreadCount(payload.unreadCount ?? 0)
-      setNotifications(payload.notifications ?? [])
-    }
+    const payload = await apiFetch<{ unreadCount: number; notifications: NotificationItem[] }>(
+      '/user/notifications/read-all',
+      { method: 'POST' },
+      { token: authToken },
+    )
+    setUnreadCount(payload.unreadCount ?? 0)
+    setNotifications(payload.notifications ?? [])
   }
 
   if (!authToken || unreadCount === 0) {

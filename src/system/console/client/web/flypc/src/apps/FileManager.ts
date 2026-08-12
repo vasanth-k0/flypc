@@ -1,3 +1,5 @@
+import { buildAuthHeaders } from '../services/apiClient'
+
 export type FileRoot = {
   id: string
   label: string
@@ -26,24 +28,6 @@ export type ExplorerClipboard = {
   mode: 'cut' | 'copy'
   rootId: string
   paths: string[]
-}
-
-const buildAuthHeaders = (init?: RequestInit): Headers => {
-  const headers = new Headers(init?.headers ?? {})
-  if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json')
-  }
-
-  const authToken = window.localStorage.getItem('flypc-auth-token')
-  if (authToken && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${authToken}`)
-  }
-
-  if (!headers.has('Content-Type') && init?.body && !(init.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json')
-  }
-
-  return headers
 }
 
 const apiFetch = async <T>(url: string, init?: RequestInit): Promise<T> => {

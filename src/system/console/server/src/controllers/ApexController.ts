@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
+import { getRealUsername } from '../middleware/requireRealUser.js'
 import { getInstallContext } from '../services/AppControlsService.js'
 import { apexService, type ApexInstallOptions } from '../services/ApexService.js'
 import { loadApexCatalogEntry } from '../lib/ApexCatalog.js'
@@ -35,17 +36,8 @@ const runApexInstallInBackground = (
   })()
 }
 
-const getUsername = (req: Request): string | null => {
-  const typedReq = req as AuthenticatedRequest
-  const username = typedReq.authUser?.username
-  if (!username || username === 'guest') {
-    return null
-  }
-  return username
-}
-
 export const listApexCatalogHandler = (req: Request, res: Response): void => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   if (!username) {
     res.status(401).json({ error: 'Authentication required' })
     return
@@ -62,7 +54,7 @@ export const listApexCatalogHandler = (req: Request, res: Response): void => {
 }
 
 export const getApexCatalogAppHandler = (req: Request, res: Response): void => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   const appKey = String(req.params.appKey ?? '')
 
   if (!username) {
@@ -98,7 +90,7 @@ export const getApexInstallContextHandler = async (_req: Request, res: Response)
 }
 
 export const installApexAppHandler = async (req: Request, res: Response): Promise<void> => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   const appKey = String(req.params.appKey ?? '')
 
   if (!username) {
@@ -134,7 +126,7 @@ export const installApexAppHandler = async (req: Request, res: Response): Promis
 }
 
 export const uninstallApexAppHandler = async (req: Request, res: Response): Promise<void> => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   const appKey = String(req.params.appKey ?? '')
 
   if (!username) {

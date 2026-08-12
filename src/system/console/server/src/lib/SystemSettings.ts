@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ContainerProgram } from '../types/ServiceDefinition.js'
-import { readBlueprint } from '../controllers/TenantStorage.js'
+import { readBlueprint } from '../services/storage/TenantStorage.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

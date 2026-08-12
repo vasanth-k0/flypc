@@ -5,7 +5,7 @@ import { Sequelize } from 'sequelize'
 import { Umzug, SequelizeStorage } from 'umzug'
 import { initUserModel, UserModel } from './models/User.model.js'
 import { initNotificationModel } from './models/Notification.model.js'
-import { ensureBlueprintFile, ensureUserPreferencesFromBlueprint } from '../controllers/TenantStorage.js'
+import { ensureBlueprintFile, ensureUserPreferencesFromBlueprint } from '../services/storage/TenantStorage.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const sqliteStoragePath =

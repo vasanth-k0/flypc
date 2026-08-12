@@ -1,96 +1,37 @@
 import React from 'react'
-import { Button, Input, Modal } from 'antd'
+import { Button } from 'antd'
 import { useAppSelector, useAppDispatch } from './store/hooks'
 import { setControlsSide, setLayoutMode, setWallpaper } from './store/settingsSlice'
 import type { LayoutMode } from './store/settingsSlice'
 import { setColorPalette } from './store/themeSlice'
 import { ColorPalette } from './globals/ColorPalette'
 import { useUpdateSettingMutation } from './store/settingsApi'
+import { useGetAppsListQuery } from './store/appsApi'
 import { AppWindow } from './components/AppWindow'
 import { FileExplorer } from './components/FileExplorer'
 import { NativeWindowContent } from './components/NativeWindowContent'
 import { SystemSettingsPanel } from './components/SystemSettingsPanel'
 import { DesktopTaskbar } from './components/DesktopTaskbar'
-import { FloatingSubmenu } from './components/FloatingSubmenu'
-import { NotificationPanel } from './components/NotificationPanel'
 import { WebAppCards } from './components/WebAppCards'
-import { MdClose, MdMinimize } from 'react-icons/md'
-import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
-import FullscreenIcon from '@mui/icons-material/Fullscreen'
-import {
-  AppstoreOutlined,
-  MonitorOutlined,
-  EditFilled,
-  CodeFilled,
-  ThunderboltFilled,
-  FileTextFilled,
-  DatabaseFilled,
-  InfoCircleFilled,
-  SettingOutlined,
-  FolderOpenOutlined,
-  ThunderboltOutlined,
-  CloseOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  UserOutlined,
-  GlobalOutlined,
-} from '@ant-design/icons'
-
-type AppEntry = {
-  key: string
-  name: string
-  icon: string
-  description?: string
-  published: boolean
-  users: string[]
-}
-
-type WindowId = 'apps' | 'monitor' | 'files' | 'terminal' | 'settings' | 'accounts' | 'members' | `app:${string}`
-
-type AuthUser = {
-  id: string
-  username: string
-  role: 'Admin' | 'Guest'
-}
-
-type MemberSummary = {
-  id: string
-  username: string
-  role: 'Admin' | 'Guest'
-  createdAt: string
-  apps?: string[]
-  totalStorageBytes?: number
-  totalStorageMB?: number
-  usagePercent?: number
-}
+import { MonitorView } from './components/views/MonitorView'
+import { TerminalView } from './components/views/TerminalView'
+import { AccountsView } from './components/views/AccountsView'
+import { MembersView } from './components/views/MembersView'
+import { SidebarNav } from './components/navigation/SidebarNav'
+import { WebLayoutNav } from './components/navigation/WebLayoutNav'
+import { WindowChrome } from './components/window/WindowChrome'
+import { useAuth } from './hooks/useAuth'
+import { useWindowManager } from './hooks/useWindowManager'
+import { useLayoutContext } from './hooks/useLayoutContext'
+import { renderAppIcon, withMenuIconColor } from './utils/menuIcons'
+import type { WindowId } from './types/dashboard'
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 
 type DesktopBridgeWindow = Window & {
   flypcDesktop?: {
     toggleFullScreen?: () => Promise<boolean>
   }
 }
-
-const APP_ICON_COMPONENTS: Record<string, React.ComponentType<{ style?: React.CSSProperties }>> = {
-  EditFilled,
-  CodeFilled,
-  ThunderboltFilled,
-  DatabaseFilled,
-  FileTextFilled,
-  InfoCircleFilled,
-  AppstoreOutlined,
-  GlobalOutlined,
-}
-
-const renderAppIcon = (iconName: string, color?: string): React.ReactNode => {
-  const Icon = APP_ICON_COMPONENTS[iconName] ?? AppstoreOutlined
-  return <Icon style={color ? { color } : undefined} />
-}
-
-const withMenuIconColor = (icon: React.ReactNode, color: string): React.ReactNode => (
-  <span style={{ color, display: 'inline-flex', lineHeight: 0, alignItems: 'center' }}>
-    {icon}
-  </span>
-)
 
 export const appbrick: React.CSSProperties = {
   display: 'flex',
@@ -118,51 +59,76 @@ const hybridAppbrick: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-const formatBytes = (value: number): string => {
-  if (value < 1024) {
-    return `${value} B`
-  }
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(2)} KB`
-  }
-  return `${(value / (1024 * 1024)).toFixed(2)} MB`
-}
-
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch()
   const [updateSetting] = useUpdateSettingMutation()
 
-  // Redux state
   const { name, ui: layoutMode, controlsSide, wallp: activeWallp } = useAppSelector((state) => state.settings)
   const { activeTheme, primary, secondary } = useAppSelector((state) => state.theme)
 
-  // Current active window in our mock dashboard
-  const [activeWindowId, setActiveWindowId] = React.useState<WindowId>('apps')
-  const [appsListReturnWindowId, setAppsListReturnWindowId] = React.useState<WindowId | null>(null)
-  const [openApps, setOpenApps] = React.useState<AppEntry[]>([])
-  const [appSessionVersion, setAppSessionVersion] = React.useState(0)
-  const [openAppControls, setOpenAppControls] = React.useState<Record<string, boolean>>({})
   const [hoveredClosableMenuKey, setHoveredClosableMenuKey] = React.useState<string | null>(null)
   const [openedAccountsMenuArea, setOpenedAccountsMenuArea] = React.useState<'sidebar' | 'footer' | null>(null)
   const sidebarAccountHubRef = React.useRef<HTMLDivElement>(null)
-  const [apps, setApps] = React.useState<AppEntry[]>([])
-  const [appsError, setAppsError] = React.useState<string | null>(null)
-  const [authToken, setAuthToken] = React.useState<string>(() => window.localStorage.getItem('flypc-auth-token') ?? '')
-  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null)
-  const [accountMessage, setAccountMessage] = React.useState<string>('')
-  const [accountError, setAccountError] = React.useState<string>('')
-  const [loginUsername, setLoginUsername] = React.useState<string>('')
-  const [loginPassword, setLoginPassword] = React.useState<string>('')
-  const [changeNameValue, setChangeNameValue] = React.useState<string>('')
-  const [currentPassword, setCurrentPassword] = React.useState<string>('')
-  const [newPassword, setNewPassword] = React.useState<string>('')
-  const [members, setMembers] = React.useState<MemberSummary[]>([])
-  const [membersError, setMembersError] = React.useState<string>('')
-  const [isMaximized, setIsMaximized] = React.useState<boolean>(false)
   const [isLandscape, setIsLandscape] = React.useState<boolean>(() => window.innerWidth > window.innerHeight)
   const [isDashboardMenuVisible, setIsDashboardMenuVisible] = React.useState<boolean>(() => window.innerWidth > window.innerHeight)
   const [isWebPortraitMenuOpen, setIsWebPortraitMenuOpen] = React.useState(false)
-  const dashboardMenuHideTimerRef = React.useRef<number | null>(null)
+
+  const {
+    activeWindowId,
+    openApps,
+    appSessionVersion,
+    openAppControls,
+    setOpenAppControls,
+    isMaximized,
+    handleCloseAppWindow,
+    handleCloseWindow,
+    handleMinimizeWindow,
+    handleMaximizeWindow,
+    handleWindowChange: changeWindow,
+    handleAppOpen,
+    refreshAppSessions,
+    setActiveWindowId,
+  } = useWindowManager({
+    layoutMode,
+    isLandscape,
+    isDashboardMenuVisible,
+    setIsDashboardMenuVisible,
+  })
+
+  const {
+    authToken,
+    authUser,
+    members,
+    accountMessage,
+    accountError,
+    membersError,
+    loginUsername,
+    loginPassword,
+    changeNameValue,
+    currentPassword,
+    newPassword,
+    setLoginUsername,
+    setLoginPassword,
+    setChangeNameValue,
+    setCurrentPassword,
+    setNewPassword,
+    handleLoginRequest,
+    handleLogout,
+    handleChangeName,
+    handleResetPassword,
+  } = useAuth({
+    onLoginSuccess: () => {
+      refreshAppSessions()
+      setActiveWindowId('apps')
+    },
+  })
+
+  const { data: apps = [], error: appsQueryError } = useGetAppsListQuery()
+  const appsError = appsQueryError
+    ? 'error' in appsQueryError
+      ? String(appsQueryError.error)
+      : 'Unable to load apps'
+    : null
 
   React.useEffect(() => {
     const updateOrientation = () => setIsLandscape(window.innerWidth > window.innerHeight)
@@ -170,105 +136,11 @@ const Dashboard: React.FC = () => {
     return () => window.removeEventListener('resize', updateOrientation)
   }, [])
 
-  const apiFetch = React.useCallback(
-    async <T,>(url: string, init?: RequestInit): Promise<T> => {
-      const headers = new Headers(init?.headers ?? {})
-      headers.set('Content-Type', 'application/json')
-
-      if (authToken) {
-        headers.set('Authorization', `Bearer ${authToken}`)
-      }
-
-      const response = await fetch(url, {
-        ...init,
-        headers,
-      })
-
-      const payload = (await response.json()) as T & { error?: string }
-      if (!response.ok) {
-        throw new Error(payload.error ?? `Request failed (${response.status})`)
-      }
-
-      return payload
-    },
-    [authToken]
-  )
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    const loadProfile = async () => {
-      if (!authToken) {
-        setAuthUser(null)
-        return
-      }
-
-      try {
-        const payload = await apiFetch<{ ok: boolean; user: AuthUser }>('/user/me')
-        if (isMounted) {
-          setAuthUser(payload.user)
-          setChangeNameValue(payload.user.username)
-        }
-      } catch {
-        if (isMounted) {
-          setAuthUser(null)
-          setAuthToken('')
-          window.localStorage.removeItem('flypc-auth-token')
-        }
-      }
-    }
-
-    void loadProfile()
-
-    return () => {
-      isMounted = false
-    }
-  }, [apiFetch, authToken])
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    const loadMembers = async () => {
-      if (!authToken || authUser?.role !== 'Admin') {
-        setMembers([])
-        setMembersError('')
-        return
-      }
-
-      try {
-        const payload = await apiFetch<{ ok: boolean; members: MemberSummary[] }>('/user/members')
-        if (isMounted) {
-          setMembers(payload.members)
-          setMembersError('')
-        }
-      } catch (error) {
-        if (isMounted) {
-          setMembers([])
-          setMembersError(error instanceof Error ? error.message : String(error))
-        }
-      }
-    }
-
-    void loadMembers()
-
-    return () => {
-      isMounted = false
-    }
-  }, [apiFetch, authToken, authUser?.role])
-
   React.useEffect(() => {
     if (layoutMode === 'dashboard') {
       setIsDashboardMenuVisible(isLandscape)
     }
   }, [layoutMode, isLandscape])
-
-  React.useEffect(() => {
-    return () => {
-      if (dashboardMenuHideTimerRef.current !== null) {
-        window.clearTimeout(dashboardMenuHideTimerRef.current)
-      }
-    }
-  }, [])
 
   React.useEffect(() => {
     if (!openedAccountsMenuArea) {
@@ -290,179 +162,60 @@ const Dashboard: React.FC = () => {
     }
   }, [openedAccountsMenuArea])
 
-  React.useEffect(() => {
-    let isMounted = true
-
-    const loadApps = async () => {
-      try {
-        const payload = await apiFetch<AppEntry[]>('/apps/list')
-        if (isMounted) {
-          setApps(Array.isArray(payload) ? payload : [])
-          setAppsError(null)
-        }
-      } catch (error) {
-        if (isMounted) {
-          setApps([])
-          setAppsError(error instanceof Error ? error.message : String(error))
-        }
-      }
-    }
-
-    void loadApps()
-
-    return () => {
-      isMounted = false
-    }
-  }, [apiFetch])
-
-  const handleCloseAppWindow = (appKey: string) => {
-    setOpenApps((current) => current.filter((app) => app.key !== appKey))
-    setAppsListReturnWindowId((current) => current === `app:${appKey}` ? null : current)
-    setActiveWindowId('apps')
-    setIsMaximized(false)
-  }
-
-  const handleCloseWindow = () => {
-    if (activeWindowId.startsWith('app:')) {
-      handleCloseAppWindow(activeWindowId.slice(4))
-      return
-    }
-
-    setIsMaximized(false)
-    setActiveWindowId('apps')
-  }
-
-  const handleMinimizeWindow = () => {
-    setIsMaximized(false)
-    setActiveWindowId('apps')
-  }
-
-  const handleMaximizeWindow = () => {
-    setIsMaximized((current) => !current)
-  }
-
-  const handleWindowChange = (windowId: WindowId) => {
+  const handleWindowChange = React.useCallback((windowId: WindowId) => {
     setOpenedAccountsMenuArea(null)
+    changeWindow(windowId)
+  }, [changeWindow])
 
-    if (windowId !== 'apps' && activeWindowId === windowId) {
-      setAppsListReturnWindowId(windowId)
-      setActiveWindowId('apps')
-    } else if (activeWindowId === 'apps' && appsListReturnWindowId === windowId) {
-      setAppsListReturnWindowId(null)
-      setActiveWindowId(windowId)
-    } else {
-      setAppsListReturnWindowId(null)
-      setActiveWindowId(windowId)
-    }
+  const layout = useLayoutContext({
+    layoutMode,
+    activeTheme,
+    primary,
+    secondary,
+    controlsSide,
+    activeWindowId,
+    openApps,
+    openAppControls,
+    isMaximized,
+    isLandscape,
+    authUser,
+  })
 
-    if (layoutMode === 'dashboard' && !isLandscape && isDashboardMenuVisible) {
-      if (dashboardMenuHideTimerRef.current !== null) {
-        window.clearTimeout(dashboardMenuHideTimerRef.current)
-      }
+  const {
+    accountSubmenuItems,
+    isDashboard,
+    isDesktop,
+    isHybrid,
+    isSharp,
+    isWeb,
+    sidebarOnRight,
+    isAppsShortcutView,
+    isShortcutSurface,
+    desktopWindowHeight,
+    isWindowMaximized,
+    activeAppKey,
+    hasRightControlsOpen,
+    hasRightControls,
+    controlsPanelWidth,
+    rightControlsHeaderWidth,
+    titleBarHeight,
+    primaryColor,
+    secondaryColor,
+    isWhitePalette,
+    whitePaletteChromeColor,
+    useLightTitleBar,
+    titleButtonIconColor,
+    windowTitleColor,
+    activeLabel,
+    activeWindowIcon,
+    visibleMenuItems,
+    sidebarMenuItems,
+    settingsMenuItem,
+    webPrimaryNavItems,
+    getMenuItemColor,
+  } = layout
 
-      dashboardMenuHideTimerRef.current = window.setTimeout(() => {
-        setIsDashboardMenuVisible(false)
-        dashboardMenuHideTimerRef.current = null
-      }, 500)
-    }
-  }
-
-  const handleAppOpen = (app: AppEntry) => {
-    setOpenApps((current) => {
-      if (current.some((entry) => entry.key === app.key)) {
-        return current
-      }
-
-      return [...current, app]
-    })
-    setAppsListReturnWindowId(null)
-    setActiveWindowId(`app:${app.key}`)
-  }
-
-  const clearAccountFeedback = () => {
-    setAccountMessage('')
-    setAccountError('')
-  }
-
-  const handleLogin = async (): Promise<void> => {
-    clearAccountFeedback()
-    try {
-      const payload = await apiFetch<{ ok: boolean; token: string; user: AuthUser }>('/user/login', {
-        method: 'POST',
-        body: JSON.stringify({ username: loginUsername, password: loginPassword }),
-      })
-
-      setAuthToken(payload.token)
-      setAuthUser(payload.user)
-      setChangeNameValue(payload.user.username)
-      window.localStorage.setItem('flypc-auth-token', payload.token)
-      setAccountMessage('Logged in successfully.')
-      setLoginPassword('')
-      setAppSessionVersion((current) => current + 1)
-      setActiveWindowId('apps')
-      Modal.destroyAll()
-    } catch (error) {
-      setAccountError(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  const handleLoginRequest = () => {
-    Modal.confirm({
-      title: 'Refresh app sessions?',
-      content: 'Signing in will refresh all currently opened app sessions. Do you want to proceed?',
-      okText: 'Proceed and sign in',
-      cancelText: 'Cancel',
-      onOk: () => handleLogin(),
-    })
-  }
-
-  const handleLogout = async () => {
-    clearAccountFeedback()
-    try {
-      await apiFetch<{ ok: boolean }>('/user/logout', { method: 'POST', body: JSON.stringify({}) })
-    } catch {
-      // Ignore logout failures and clear local auth state anyway.
-    }
-
-    setAuthToken('')
-    setAuthUser(null)
-    setMembers([])
-    window.localStorage.removeItem('flypc-auth-token')
-    setAccountMessage('Logged out.')
-  }
-
-  const handleChangeName = async () => {
-    clearAccountFeedback()
-    try {
-      const payload = await apiFetch<{ ok: boolean; token: string; user: AuthUser }>('/user/change-name', {
-        method: 'POST',
-        body: JSON.stringify({ newUsername: changeNameValue }),
-      })
-
-      setAuthToken(payload.token)
-      setAuthUser(payload.user)
-      window.localStorage.setItem('flypc-auth-token', payload.token)
-      setAccountMessage('Name updated successfully.')
-    } catch (error) {
-      setAccountError(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  const handleResetPassword = async () => {
-    clearAccountFeedback()
-    try {
-      await apiFetch<{ ok: boolean }>('/user/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({ currentPassword, newPassword }),
-      })
-
-      setCurrentPassword('')
-      setNewPassword('')
-      setAccountMessage('Password updated successfully.')
-    } catch (error) {
-      setAccountError(error instanceof Error ? error.message : String(error))
-    }
-  }
+  const shouldHideDashboardWindowArea = false
 
   const handleLayoutModeChange = (mode: LayoutMode) => {
     dispatch(setLayoutMode(mode)) // optimistic update
@@ -504,97 +257,6 @@ const Dashboard: React.FC = () => {
     }
   }, [activeTheme])
 
-  const menuItems = [
-    { key: 'apps', label: 'Apps', icon: <AppstoreOutlined /> },
-    { key: 'monitor', label: 'Monitor', icon: <MonitorOutlined /> },
-    { key: 'files', label: 'File Manager', icon: <FolderOpenOutlined /> },
-    { key: 'terminal', label: 'Terminal', icon: <ThunderboltOutlined /> },
-    { key: 'settings', label: 'Settings', icon: <SettingOutlined /> },
-  ]
-
-  const accountSubmenuItems: Array<{ key: WindowId; label: string; icon: React.ReactNode }> = [
-    { key: 'accounts', label: 'Accounts', icon: <UserOutlined /> },
-    ...(authUser?.role === 'Admin' ? [{ key: 'members' as WindowId, label: 'Members', icon: <UserOutlined /> }] : []),
-  ]
-
-  const accountHubMenuItem = {
-    key: 'account-hub',
-    label: 'Accounts',
-    icon: <UserOutlined />,
-    subItems: accountSubmenuItems,
-  }
-
-  const isDashboard = layoutMode === 'dashboard'
-  const isDesktop = layoutMode === 'desktop'
-  const isHybrid = layoutMode === 'hybrid-console'
-  const isSharp = layoutMode === 'sharp'
-  const isWeb = layoutMode === 'web'
-  const isDesktopLike = isDesktop || isHybrid || isSharp || isWeb
-  const sidebarOnRight = !isLandscape && (isDashboard || isHybrid)
-  const isAppsLauncherWindow = activeWindowId === 'apps'
-  const isAppsShortcutView = !isDashboard && !isWeb && isAppsLauncherWindow && isDesktopLike
-  const isShortcutSurface = isAppsShortcutView
-  const desktopWindowHeight = isDesktop && isLandscape ? 'calc(100% - 75px)' : '100%'
-  const isWindowMaximized = !isDashboard && isMaximized && (isDesktop || isHybrid || isSharp || isWeb)
-  const shouldHideDashboardWindowArea = false
-  const activeAppKey = activeWindowId.startsWith('app:') ? activeWindowId.slice(4) : null
-  const hasRightControlsOpen = Boolean(activeAppKey && openAppControls[activeAppKey] && controlsSide === 'right')
-  const hasRightControls = Boolean(activeAppKey && controlsSide === 'right')
-  const controlsPanelWidth = !isLandscape ? '100%' : isDesktop ? '30%' : '25%'
-  const collapsedControlsPanelWidth = '2.5rem'
-  const rightControlsHeaderWidth = hasRightControlsOpen ? controlsPanelWidth : collapsedControlsPanelWidth
-  const titleBarHeight = '2.35rem'
-  const primaryColor = primary || '#597ef7'
-  const secondaryColor = secondary || '#85a5ff'
-  const isWhitePalette = activeTheme === 'White'
-  const whitePaletteChromeColor = '#334155'
-  const useLightTitleBar = isDashboard && !hasRightControls
-  const titleButtonIconColor = isWhitePalette || useLightTitleBar ? whitePaletteChromeColor : '#ffffff'
-  const windowTitleColor = isWhitePalette
-    ? whitePaletteChromeColor
-    : useLightTitleBar
-      ? 'black'
-      : '#ffffff'
-
-  // Active tab label for the window title bar
-  const activeLabel =
-    activeWindowId.startsWith('app:')
-      ? openApps.find((app) => `app:${app.key}` === activeWindowId)?.name ?? 'App'
-      : activeWindowId === 'accounts'
-        ? 'Accounts'
-        : activeWindowId === 'members'
-          ? 'Members'
-          : menuItems.find((m) => m.key === activeWindowId)?.label ?? 'Console'
-  const activeWindowIcon = activeWindowId.startsWith('app:')
-    ? renderAppIcon(openApps.find((app) => `app:${app.key}` === activeWindowId)?.icon ?? '')
-    : activeWindowId === 'accounts' || activeWindowId === 'members'
-      ? <UserOutlined />
-      : menuItems.find((item) => item.key === activeWindowId)?.icon ?? <AppstoreOutlined />
-  const visibleMenuItems = [
-    menuItems[0],
-    menuItems[1],
-    ...openApps.map((app) => ({ key: `app:${app.key}`, label: app.name, icon: renderAppIcon(app.icon) })),
-    ...menuItems.slice(2, 4),
-    accountHubMenuItem,
-    ...menuItems.slice(4),
-  ]
-  const sidebarMenuItems = visibleMenuItems.filter((item) => item.key !== 'settings')
-  const settingsMenuItem = menuItems.find((item) => item.key === 'settings')!
-  const webPrimaryNavItems = [
-    ...menuItems.filter((item) => item.key !== 'settings'),
-    { key: 'accounts', label: 'Accounts', icon: <UserOutlined /> },
-  ]
-
-  // Determine contrasting text colors dynamically
-  const getMenuItemColor = (isActive: boolean): string => {
-    if (isWhitePalette) {
-      return whitePaletteChromeColor
-    }
-    if (isActive) {
-      return '#ffffff'
-    }
-    return 'rgba(255, 255, 255, 0.68)'
-  }
   const launcherApps = apps.map((app) => ({
     key: app.key,
     name: app.name,
@@ -730,419 +392,48 @@ const Dashboard: React.FC = () => {
 
         {/* Menu on side - left in dashboard landscape, right in dashboard portrait, left rail in hybrid */}
         {(isDashboard || isHybrid) && (
-          <aside
-            id="menubar"
-            style={{
-              // Dashboard: full sidebar with text. Hybrid: icon-only narrow rail.
-              width: isDashboard ? (isDashboardMenuVisible ? '192px' : '0px') : '61px',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              padding: isDashboard
-                ? isDashboardMenuVisible
-                  ? '1rem 0.75rem'
-                  : '1rem 0'
-                : '0.75rem 0.25rem',
-              boxSizing: 'border-box',
-              background: primaryColor,
-              borderLeft: sidebarOnRight
-                ? '1px solid rgba(255, 255, 255, 0.12)'
-                : '1px solid transparent',
-              borderRight: sidebarOnRight
-                ? '1px solid transparent'
-                : isDashboard && isLandscape
-                  ? isDashboardMenuVisible
-                    ? '1px solid rgba(0, 0, 0, 0.06)'
-                    : '1px solid transparent'
-                  : isDashboard
-                    ? isDashboardMenuVisible
-                      ? '1px solid rgba(0, 0, 0, 0.06)'
-                      : '1px solid transparent'
-                    : '1px solid rgba(255, 255, 255, 0.12)',
-              zIndex: 5,
-              overflow: 'visible',
-              opacity: isDashboard && !isDashboardMenuVisible ? 0 : 1,
-              pointerEvents: isDashboard && !isDashboardMenuVisible ? 'none' : 'auto',
-              transition: 'width 0.28s ease, padding 0.28s ease, border-color 0.28s ease, opacity 0.16s ease',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: isHybrid ? '7px' : '0.25rem' }}>
-
-              {sidebarMenuItems.map((item) => {
-                const isAccountHubItem = item.key === 'account-hub'
-                const isActive = isAccountHubItem ? activeWindowId === 'accounts' || activeWindowId === 'members' : activeWindowId === item.key
-                const isUserAppItem = item.key.startsWith('app:')
-                const showMenuClose = isDashboard && isUserAppItem && (isActive || hoveredClosableMenuKey === item.key)
-                const showAccountsSubmenu = isAccountHubItem && openedAccountsMenuArea === 'sidebar'
-                return (
-                  <div
-                    key={item.key}
-                    ref={isAccountHubItem ? sidebarAccountHubRef : undefined}
-                    data-accounts-hub={isAccountHubItem ? 'sidebar' : undefined}
-                    style={{ position: 'relative' }}
-                    onMouseEnter={() => {
-                      if (isDashboard && isUserAppItem) {
-                        setHoveredClosableMenuKey(item.key)
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      if (hoveredClosableMenuKey === item.key) {
-                        setHoveredClosableMenuKey(null)
-                      }
-                    }}
-                  >
-                    <button
-                      title={item.label}
-                      onClick={() => {
-                        if (isAccountHubItem) {
-                          setOpenedAccountsMenuArea((current) => (current === 'sidebar' ? null : 'sidebar'))
-                          return
-                        }
-                        handleWindowChange(item.key as WindowId)
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: isDashboard ? 'flex-start' : 'center',
-                        gap: isDashboard ? '0.5rem' : '0',
-                        width: '100%',
-                        height: undefined,
-                        margin: undefined,
-                        padding: isDashboard ? '0.45rem 0.65rem' : '0.5rem',
-                        borderRadius: '7px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '0.78rem',
-                        fontWeight: 400,
-                        letterSpacing: '0.01em',
-                        textAlign: 'left',
-                        transition: 'all 0.15s ease',
-                        background: isActive ? secondaryColor : 'transparent',
-                        color: getMenuItemColor(isActive),
-                        boxShadow: 'none',
-                      }}
-                    >
-                      <span style={{ fontSize: isDashboard ? '0.85rem' : isHybrid ? '17px' : '21px', flexShrink: 0 }}>
-                        {withMenuIconColor(item.icon, getMenuItemColor(isActive))}
-                      </span>
-                      {isDashboard && (
-                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {item.label}
-                        </span>
-                      )}
-                      {isDashboard && isUserAppItem && (
-                        <span
-                          title="Close app"
-                          onClick={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            handleCloseAppWindow(item.key.slice(4))
-                          }}
-                          style={{
-                            marginLeft: 'auto',
-                            width: '16px',
-                            height: '16px',
-                            borderRadius: '4px',
-                            display: 'grid',
-                            placeItems: 'center',
-                            color: getMenuItemColor(isActive),
-                            opacity: showMenuClose ? 1 : 0,
-                            pointerEvents: showMenuClose ? 'auto' : 'none',
-                            transition: 'opacity 0.15s ease',
-                          }}
-                        >
-                          <CloseOutlined style={{ fontSize: '0.62rem' }} />
-                        </span>
-                      )}
-                    </button>
-                    <FloatingSubmenu
-                      open={showAccountsSubmenu}
-                      anchorRef={sidebarAccountHubRef}
-                      placement={sidebarOnRight ? 'left' : 'right'}
-                      zIndex={1200}
-                      menuStyle={{
-                        minWidth: '150px',
-                        padding: '0.35rem',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        background: primaryColor,
-                        boxShadow: '0 12px 26px rgba(15, 23, 42, 0.3)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.2rem',
-                      }}
-                    >
-                      {accountSubmenuItems.map((subItem) => (
-                        <button
-                          key={subItem.key}
-                          title={subItem.label}
-                          onClick={() => {
-                            handleWindowChange(subItem.key)
-                            setOpenedAccountsMenuArea(null)
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            width: '100%',
-                            padding: '0.42rem 0.58rem',
-                            border: 'none',
-                            borderRadius: '6px',
-                            background: activeWindowId === subItem.key ? secondaryColor : 'transparent',
-                            color: getMenuItemColor(activeWindowId === subItem.key),
-                            fontSize: '0.75rem',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>
-                            {withMenuIconColor(subItem.icon, getMenuItemColor(activeWindowId === subItem.key))}
-                          </span>
-                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subItem.label}</span>
-                        </button>
-                      ))}
-                    </FloatingSubmenu>
-                  </div>
-                )
-              })}
-            </div>
-
-            <NotificationPanel
-              authToken={authToken}
-              isDashboard={isDashboard}
-              iconColor={getMenuItemColor(false)}
-              primaryColor={primaryColor}
-            />
-
-            <button
-              title={settingsMenuItem.label}
-              onClick={() => handleWindowChange('settings')}
-              style={{
-                width: '100%',
-                padding: isDashboard ? '0.45rem 0.65rem' : '0.5rem',
-                borderRadius: '6px',
-                border: 'none',
-                background: activeWindowId === 'settings' ? secondaryColor : 'transparent',
-                fontSize: '0.78rem',
-                color: getMenuItemColor(activeWindowId === 'settings'),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: isDashboard ? 'flex-start' : 'center',
-                gap: '0.35rem',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: isDashboard ? '0.85rem' : '15px', flexShrink: 0 }}>
-                {withMenuIconColor(settingsMenuItem.icon, getMenuItemColor(activeWindowId === 'settings'))}
-              </span>
-              {isDashboard && <span>Settings</span>}
-            </button>
-          </aside>
+          <SidebarNav
+            isDashboard={isDashboard}
+            isHybrid={isHybrid}
+            isDashboardMenuVisible={isDashboardMenuVisible}
+            isLandscape={isLandscape}
+            sidebarOnRight={sidebarOnRight}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            sidebarMenuItems={sidebarMenuItems}
+            accountSubmenuItems={accountSubmenuItems}
+            settingsMenuItem={settingsMenuItem}
+            activeWindowId={activeWindowId}
+            authToken={authToken}
+            hoveredClosableMenuKey={hoveredClosableMenuKey}
+            openedAccountsMenuArea={openedAccountsMenuArea}
+            sidebarAccountHubRef={sidebarAccountHubRef}
+            getMenuItemColor={getMenuItemColor}
+            onWindowChange={handleWindowChange}
+            onCloseAppWindow={handleCloseAppWindow}
+            onHoverClosableMenuKey={setHoveredClosableMenuKey}
+            onToggleAccountsMenuArea={setOpenedAccountsMenuArea}
+          />
         )}
 
         {isWeb && (
-          <nav
-            aria-label="Web layout navigation"
-            style={{
-              position: 'relative',
-              height: '4.5rem',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: '0 1rem',
-              boxSizing: 'border-box',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.18)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                flexShrink: 0,
-                minWidth: isLandscape ? '9rem' : undefined,
-                color: isWhitePalette ? whitePaletteChromeColor : '#ffffff',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-              }}
-            >
-              <img src="/logo.png" alt="FlyPC" style={{ width: '1.8rem', height: '1.8rem', objectFit: 'contain' }} />
-              <span>FlyPC</span>
-            </div>
-
-            {isLandscape && (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '2.5rem',
-                  height: '100%',
-                  minWidth: 0,
-                }}
-              >
-                {webPrimaryNavItems.map((item) => {
-                  const isActive = activeWindowId === item.key
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => handleWindowChange(item.key as WindowId)}
-                      style={{
-                        height: '100%',
-                        padding: '0 0.1rem',
-                        border: 'none',
-                        borderBottom: isActive ? `2px solid ${secondaryColor}` : '2px solid transparent',
-                        background: 'transparent',
-                        color: getMenuItemColor(isActive),
-                        fontSize: '0.76rem',
-                        fontWeight: 500,
-                        letterSpacing: '0.04em',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                marginLeft: isLandscape ? 0 : 'auto',
-                flexShrink: 0,
-                height: isLandscape ? '100%' : undefined,
-              }}
-            >
-              {!isLandscape && (
-                <>
-                  <button
-                    type="button"
-                    aria-expanded={isWebPortraitMenuOpen}
-                    aria-controls="web-portrait-menu"
-                    onClick={() => setIsWebPortraitMenuOpen((open) => !open)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      padding: '0.5rem 0.7rem',
-                      border: '1px solid rgba(255, 255, 255, 0.28)',
-                      borderRadius: '4px',
-                      background: '#ffffff12',
-                      color: isWhitePalette ? whitePaletteChromeColor : '#ffffff',
-                      fontSize: '0.76rem',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span>{activeLabel}</span>
-                    <span aria-hidden="true">▾</span>
-                  </button>
-                  {isWebPortraitMenuOpen && (
-                    <div
-                      id="web-portrait-menu"
-                      role="menu"
-                      style={{
-                        position: 'absolute',
-                        top: 'calc(100% + 0.35rem)',
-                        right: '1rem',
-                        minWidth: '10.5rem',
-                        padding: '0.3rem',
-                        border: '1px solid rgba(255, 255, 255, 0.22)',
-                        borderRadius: '4px',
-                        background: '#1f2939e8',
-                        backdropFilter: 'blur(8px)',
-                        boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.15rem',
-                        zIndex: 20,
-                      }}
-                    >
-                      {webPrimaryNavItems.map((item) => {
-                        const isActive = activeWindowId === item.key
-                        return (
-                          <button
-                            key={item.key}
-                            role="menuitem"
-                            type="button"
-                            onClick={() => {
-                              handleWindowChange(item.key as WindowId)
-                              setIsWebPortraitMenuOpen(false)
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '0.55rem 0.65rem',
-                              border: 'none',
-                              borderRadius: '3px',
-                              background: isActive ? '#ffffff1f' : 'transparent',
-                              color: getMenuItemColor(isActive),
-                              fontSize: '0.78rem',
-                              textAlign: 'left',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {item.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-
-              <NotificationPanel
-                authToken={authToken}
-                isDashboard={false}
-                compact
-                iconColor={getMenuItemColor(false)}
-                primaryColor={primaryColor}
-              />
-
-              <button
-                type="button"
-                title={settingsMenuItem.label}
-                aria-label={settingsMenuItem.label}
-                onClick={() => handleWindowChange('settings')}
-                style={{
-                  height: isLandscape ? '100%' : undefined,
-                  padding: isLandscape ? '0 0.1rem' : '0.5rem',
-                  border: 'none',
-                  borderBottom: isLandscape && activeWindowId === 'settings'
-                    ? `2px solid ${secondaryColor}`
-                    : isLandscape
-                      ? '2px solid transparent'
-                      : undefined,
-                  borderRadius: isLandscape ? 0 : '6px',
-                  background: !isLandscape && activeWindowId === 'settings' ? 'rgba(148, 163, 184, 0.18)' : 'transparent',
-                  color: getMenuItemColor(activeWindowId === 'settings'),
-                  fontSize: isLandscape ? '0.76rem' : '15px',
-                  fontWeight: isLandscape ? 500 : undefined,
-                  letterSpacing: isLandscape ? '0.04em' : undefined,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                {isLandscape
-                  ? settingsMenuItem.label
-                  : withMenuIconColor(settingsMenuItem.icon, getMenuItemColor(activeWindowId === 'settings'))}
-              </button>
-            </div>
-          </nav>
+          <WebLayoutNav
+            isLandscape={isLandscape}
+            isWhitePalette={isWhitePalette}
+            whitePaletteChromeColor={whitePaletteChromeColor}
+            secondaryColor={secondaryColor}
+            primaryColor={primaryColor}
+            webPrimaryNavItems={webPrimaryNavItems}
+            settingsMenuItem={settingsMenuItem}
+            activeWindowId={activeWindowId}
+            activeLabel={activeLabel}
+            authToken={authToken}
+            isWebPortraitMenuOpen={isWebPortraitMenuOpen}
+            getMenuItemColor={getMenuItemColor}
+            onWindowChange={handleWindowChange}
+            onWebPortraitMenuOpenChange={setIsWebPortraitMenuOpen}
+          />
         )}
-
         {/* Content View Area */}
         <main
           style={{
@@ -1207,169 +498,34 @@ const Dashboard: React.FC = () => {
             }}
           >
             {!isShortcutSurface && (
-              <div
-                id="title"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0',
-                  background: hasRightControls || !useLightTitleBar ? 'transparent' : 'rgba(255, 255, 255, 0.81)',
-                  color: 'white',
-                  overflow: 'hidden',
-                  position: hasRightControls ? 'absolute' : 'relative',
-                  top: hasRightControls ? 0 : undefined,
-                  right: hasRightControls ? 0 : undefined,
-                  width: hasRightControls ? rightControlsHeaderWidth : '100%',
-                  height: titleBarHeight,
-                  zIndex: hasRightControls ? 4 : undefined,
-                  transition: 'width 260ms ease',
-                  opacity: '0.8'
+              <WindowChrome
+                hasRightControls={hasRightControls}
+                hasRightControlsOpen={hasRightControlsOpen}
+                useLightTitleBar={useLightTitleBar}
+                rightControlsHeaderWidth={rightControlsHeaderWidth}
+                titleBarHeight={titleBarHeight}
+                activeAppKey={activeAppKey}
+                openAppControls={openAppControls}
+                isHybrid={isHybrid}
+                isWeb={isWeb}
+                activeWindowId={activeWindowId}
+                activeLabel={activeLabel}
+                windowTitleColor={windowTitleColor}
+                titleButtonIconColor={titleButtonIconColor}
+                primaryColor={primaryColor}
+                isMaximized={isMaximized}
+                onToggleAppControls={(appKey) => {
+                  setOpenAppControls((current) => ({
+                    ...current,
+                    [appKey]: !current[appKey],
+                  }))
                 }}
-              >
-                {activeAppKey && (
-                  <Button
-                    id="btn-controls"
-                    title={openAppControls[activeAppKey] ? 'Hide controls' : 'Show controls'}
-                    onClick={() => {
-                      setOpenAppControls((current) => ({
-                        ...current,
-                        [activeAppKey]: !current[activeAppKey],
-                      }))
-                    }}
-                    type="text"
-                    icon={openAppControls[activeAppKey]
-                      ? <MenuUnfoldOutlined style={{ fontSize: isHybrid ? '0.78rem' : '0.72rem' }} />
-                      : <MenuFoldOutlined style={{ fontSize: isHybrid ? '0.78rem' : '0.72rem' }} />}
-                    style={{
-                      position: 'absolute',
-                      zIndex: 1,
-                      top: hasRightControls ? '50%' : undefined,
-                      right: hasRightControls
-                        ? '0'
-                        : activeWindowId === 'apps' ? '4.5rem' : '6.75rem',
-                      width: '32px',
-                      height: '32px',
-                      padding: '0',
-                      borderRadius: '0',
-                      border: 'none',
-                      background: 'transparent',
-                      display: 'grid',
-                      placeItems: 'center',
-                      cursor: 'pointer',
-                      boxShadow: 'none',
-                      color: windowTitleColor,
-                      transform: hasRightControls ? 'translateY(-50%)' : undefined,
-                      transition: 'right 260ms ease, transform 260ms ease',
-                      margin: '0px 7px',
-                    }}
-                  />
-                )}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  width: '100%',
-                  minWidth: 0,
-                  minHeight: '100%',
-                  padding: hasRightControls ? '4px 2.8rem 4px 0.85rem' : '4px 0.35rem',
-                  boxSizing: 'border-box',
-                  background: hasRightControls ? primaryColor : useLightTitleBar ? 'rgba(255, 255, 255, 0.81)' : 'transparent',
-                  marginLeft: '0',
-                  transition: 'width 260ms ease, margin-left 260ms ease',
-                }}>
-                  <span
-                    style={{
-                      display: isWeb || (hasRightControls && !hasRightControlsOpen) ? 'none' : 'block',
-                      fontSize: '0.78rem',
-                      fontWeight: 400,
-                      letterSpacing: '0.03em',
-                      textTransform: 'none',
-                      userSelect: 'none',
-                      color: windowTitleColor,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      margin: '0 0.65rem'
-                    }}
-                  >
-                    {activeLabel}
-                  </span>
-                  <div style={{
-                    display: hasRightControls && !hasRightControlsOpen ? 'none' : 'flex',
-                    marginLeft: 'auto',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '4px 6px',
-                    boxSizing: 'border-box',
-                    background: 'transparent',
-                  }}>
-                    <Button
-                      id="btn-min"
-                      title="Minimise"
-                      onClick={handleMinimizeWindow}
-                      type="text"
-                      icon={<MdMinimize style={{ fontSize: 'calc(2px + 0.8rem)', color: titleButtonIconColor }} />}
-                      style={{
-                        width: '26px',
-                        height: '26px',
-                        padding: 0,
-                        borderRadius: 0,
-                        border: 'none',
-                        background: 'transparent',
-                        display: 'grid',
-                        placeItems: 'center',
-                        cursor: 'pointer',
-                        boxShadow: 'none',
-                        color: titleButtonIconColor,
-                      }}
-                    />
-                    <Button
-                      id="btn-full"
-                      title="Fullscreen"
-                      onClick={handleMaximizeWindow}
-                      type="text"
-                      icon={isMaximized
-                        ? <FullscreenExitIcon style={{ fontSize: 'calc(2px + 0.8rem)', color: titleButtonIconColor }} />
-                        : <FullscreenIcon style={{ fontSize: 'calc(2px + 0.8rem)', color: titleButtonIconColor }} />}
-                      style={{
-                        width: '26px',
-                        height: '26px',
-                        padding: 0,
-                        borderRadius: 0,
-                        border: 'none',
-                        background: 'transparent',
-                        display: 'grid',
-                        placeItems: 'center',
-                        cursor: 'pointer',
-                        boxShadow: 'none',
-                        color: titleButtonIconColor,
-                      }}
-                    />
-                    {activeWindowId !== 'apps' && (
-                      <Button
-                        id="btn-close"
-                        title="Close"
-                        onClick={handleCloseWindow}
-                        type="text"
-                        icon={<MdClose style={{ fontSize: 'calc(2px + 0.8rem)', color: titleButtonIconColor }} />}
-                        style={{
-                          width: '26px',
-                          height: '26px',
-                          padding: 0,
-                          borderRadius: 0,
-                          border: 'none',
-                          background: 'transparent',
-                          display: 'grid',
-                          placeItems: 'center',
-                          cursor: 'pointer',
-                          boxShadow: 'none',
-                          color: titleButtonIconColor,
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
+                onMinimize={handleMinimizeWindow}
+                onMaximize={handleMaximizeWindow}
+                onClose={handleCloseWindow}
+              />
             )}
+
             {/* Window content — scrollable */}
             <div id="client" className={isWeb ? 'web-native-content' : undefined} style={{ padding: '0', overflowY: 'auto', flex: 1 }}>
               <NativeWindowContent isActive={activeWindowId === 'apps'} fillHeight={isAppsShortcutView}>
@@ -1528,66 +684,7 @@ const Dashboard: React.FC = () => {
               </NativeWindowContent>
 
               <NativeWindowContent isActive={activeWindowId === 'monitor'}>
-                <h2 style={{ margin: '0 0 0.3rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                  System Health Overview
-                </h2>
-                <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                  Monitoring physical node capacity and containers.
-                </p>
-
-                {/* Metrics Cards */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '1rem',
-                    marginBottom: '2rem',
-                  }}
-                >
-                  {[
-                    { label: 'CPU Usage', val: '24%', sub: '2.4 GHz Avg' },
-                    { label: 'Memory', val: '4.8 GB / 8 GB', sub: '60% Allocated' },
-                    { label: 'Storage', val: '12.4 GB Free', sub: 'SSD Pool' },
-                    { label: 'Isolated Pods', val: '4 Active', sub: 'Sandboxed' },
-                  ].map((metric, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '1.25rem',
-                        borderRadius: '12px',
-                        background: isDashboard ? '#f8fafc' : 'rgba(0, 0, 0, 0.03)',
-                        border: isDashboard
-                          ? '1px solid #e2e8f0'
-                          : '1px solid rgba(0, 0, 0, 0.06)',
-                        boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4)',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {metric.label}
-                      </div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', lineHeight: 1.2 }}>
-                        {metric.val}
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                        {metric.sub}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div
-                  style={{
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}05)`,
-                    border: `1px solid ${primaryColor}30`,
-                    color: '#475569',
-                    fontSize: '0.75rem',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  <span style={{ fontWeight: 500 }}>Pro-Tip:</span> Switch to <span style={{ fontWeight: 500 }}>Settings</span> to adjust layouts, color schemes, and observe changes in realtime.
-                </div>
+                <MonitorView isDashboard={isDashboard} primaryColor={primaryColor} />
               </NativeWindowContent>
 
               <NativeWindowContent isActive={activeWindowId === 'files'} fillHeight noPadding>
@@ -1600,170 +697,34 @@ const Dashboard: React.FC = () => {
               </NativeWindowContent>
 
               <NativeWindowContent isActive={activeWindowId === 'terminal'}>
-                <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>Container Shell</h2>
-                <div
-                  style={{
-                    background: '#090d16',
-                    borderRadius: '10px',
-                    padding: '1.25rem',
-                    fontFamily: 'var(--mono)',
-                    fontSize: '0.9rem',
-                    color: '#4af626',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                    border: '1px solid #1e293b',
-                    height: '240px',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ color: '#888', marginBottom: '0.5rem' }}>FlyPC Container OS v1.0.0 (x86_64-pc-linux)</div>
-                  <div>$ flypc list-pods</div>
-                  <div style={{ color: '#fff', margin: '0.2rem 0 0.5rem' }}>
-                    pod-0 (Notes)           - RUNNING (pid: 140)<br />
-                    pod-1 (Coderun-Lite)    - RUNNING (pid: 145)<br />
-                    pod-2 (System-Monitor)  - RUNNING (pid: 152)
-                  </div>
-                  <div>$ echo "Theme active: {activeTheme}"</div>
-                  <div style={{ color: '#fff', margin: '0.25rem 0' }}>Theme active: {activeTheme}</div>
-                  <div style={{ display: 'inline-block', width: '8px', height: '15px', background: '#4af626', verticalAlign: 'middle', animation: 'pulse 1s infinite' }} />
-                </div>
+                <TerminalView activeTheme={activeTheme} />
               </NativeWindowContent>
 
               <NativeWindowContent isActive={activeWindowId === 'accounts'}>
-                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                  Accounts
-                </h2>
-                <p style={{ margin: '0 0 1.1rem', fontSize: '0.78rem', color: '#64748b' }}>
-                  Login, reset password, and change your account name.
-                </p>
-
-                {accountError && <div style={{ color: '#b91c1c', marginBottom: '0.75rem', fontSize: '0.78rem' }}>{accountError}</div>}
-                {accountMessage && <div style={{ color: '#166534', marginBottom: '0.75rem', fontSize: '0.78rem' }}>{accountMessage}</div>}
-
-                {!authUser ? (
-                  <div style={{ maxWidth: '460px', display: 'grid', gap: '0.7rem' }}>
-                    <label style={{ fontSize: '0.78rem', color: '#334155' }}>
-                      Username
-                      <Input
-                        value={loginUsername}
-                        onChange={(event) => setLoginUsername(event.target.value)}
-                        style={{ width: '100%', marginTop: '0.3rem', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                    </label>
-                    <label style={{ fontSize: '0.78rem', color: '#334155' }}>
-                      Password
-                      <Input.Password
-                        value={loginPassword}
-                        onChange={(event) => setLoginPassword(event.target.value)}
-                        style={{ width: '100%', marginTop: '0.3rem', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                      <Button onClick={handleLoginRequest} type="primary">
-                        Login
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ maxWidth: '640px', display: 'grid', gap: '1rem' }}>
-                    <div style={{ padding: '0.8rem 0.9rem', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
-                      Signed in as <strong>{authUser.username}</strong> ({authUser.role})
-                    </div>
-
-                    <div style={{ padding: '0.9rem', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'grid', gap: '0.55rem' }}>
-                      <h3 style={{ margin: 0, fontSize: '0.88rem', color: '#0f172a' }}>Name Change</h3>
-                      <Input
-                        value={changeNameValue}
-                        onChange={(event) => setChangeNameValue(event.target.value)}
-                        style={{ width: '100%', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                      <Button onClick={handleChangeName} type="primary">
-                        Update Name
-                      </Button>
-                    </div>
-
-                    <div style={{ padding: '0.9rem', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'grid', gap: '0.55rem' }}>
-                      <h3 style={{ margin: 0, fontSize: '0.88rem', color: '#0f172a' }}>Password Reset</h3>
-                      <Input.Password
-                        placeholder="Current password"
-                        value={currentPassword}
-                        onChange={(event) => setCurrentPassword(event.target.value)}
-                        style={{ width: '100%', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                      <Input.Password
-                        placeholder="New password"
-                        value={newPassword}
-                        onChange={(event) => setNewPassword(event.target.value)}
-                        style={{ width: '100%', padding: '0.55rem 0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                      <Button onClick={handleResetPassword} type="primary">
-                        Reset Password
-                      </Button>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                      {authUser.role === 'Admin' && (
-                        <Button
-                          onClick={() => setActiveWindowId('members')}
-                          style={{ padding: '0.52rem 0.82rem', borderRadius: '8px', border: '1px solid #94a3b8', background: '#fff', color: '#1e293b', cursor: 'pointer' }}
-                        >
-                          Members
-                        </Button>
-                      )}
-                      <Button
-                        onClick={handleLogout}
-                        danger
-                        style={{ padding: '0.52rem 0.82rem', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer' }}
-                      >
-                        Logout
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <AccountsView
+                  authUser={authUser}
+                  accountError={accountError}
+                  accountMessage={accountMessage}
+                  loginUsername={loginUsername}
+                  loginPassword={loginPassword}
+                  changeNameValue={changeNameValue}
+                  currentPassword={currentPassword}
+                  newPassword={newPassword}
+                  onLoginUsernameChange={setLoginUsername}
+                  onLoginPasswordChange={setLoginPassword}
+                  onChangeNameValueChange={setChangeNameValue}
+                  onCurrentPasswordChange={setCurrentPassword}
+                  onNewPasswordChange={setNewPassword}
+                  onLoginRequest={handleLoginRequest}
+                  onChangeName={handleChangeName}
+                  onResetPassword={handleResetPassword}
+                  onLogout={handleLogout}
+                  onOpenMembers={() => setActiveWindowId('members')}
+                />
               </NativeWindowContent>
 
               <NativeWindowContent isActive={activeWindowId === 'members'}>
-                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                  Members
-                </h2>
-                <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: '#64748b' }}>
-                  Admin view of registered users and app/storage usage.
-                </p>
-
-                {membersError && <div style={{ marginBottom: '0.7rem', color: '#b91c1c', fontSize: '0.78rem' }}>{membersError}</div>}
-
-                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px', fontSize: '0.78rem' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                        <th style={{ padding: '0.65rem', borderBottom: '1px solid #e2e8f0' }}>Username</th>
-                        <th style={{ padding: '0.65rem', borderBottom: '1px solid #e2e8f0' }}>Role</th>
-                        <th style={{ padding: '0.65rem', borderBottom: '1px solid #e2e8f0' }}>Created</th>
-                        <th style={{ padding: '0.65rem', borderBottom: '1px solid #e2e8f0' }}>Apps</th>
-                        <th style={{ padding: '0.65rem', borderBottom: '1px solid #e2e8f0' }}>Storage</th>
-                        <th style={{ padding: '0.65rem', borderBottom: '1px solid #e2e8f0' }}>Usage % (100 MB)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {members.map((member) => (
-                        <tr key={member.id}>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{member.username}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{member.role}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{new Date(member.createdAt).toLocaleString()}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{(member.apps ?? []).length ? (member.apps ?? []).join(', ') : '-'}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{formatBytes(member.totalStorageBytes ?? 0)}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{(member.usagePercent ?? 0).toFixed(2)}%</td>
-                        </tr>
-                      ))}
-                      {members.length === 0 && (
-                        <tr>
-                          <td colSpan={6} style={{ padding: '0.9rem', textAlign: 'center', color: '#64748b' }}>
-                            No members available.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <MembersView members={members} membersError={membersError} />
               </NativeWindowContent>
 
               <NativeWindowContent isActive={activeWindowId === 'settings'}>

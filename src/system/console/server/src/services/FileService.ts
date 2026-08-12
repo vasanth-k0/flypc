@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { getUserAppStoragePath, getUserHomePath, ensureUserAppStorage } from '../controllers/TenantStorage.js'
+import { getUserAppStoragePath, getUserHomePath, ensureUserAppStorage } from './storage/TenantStorage.js'
 import { loadAppsCatalog } from './AppsCatalog.js'
 import { loadServiceDefinition } from './ServiceRegistry.js'
 

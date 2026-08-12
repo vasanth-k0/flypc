@@ -1,18 +1,9 @@
 import type { Request, Response } from 'express'
-import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
+import { getRealUsername } from '../middleware/requireRealUser.js'
 import { notificationService } from '../services/NotificationService.js'
 
-const getUsername = (req: Request): string | null => {
-  const typedReq = req as AuthenticatedRequest
-  const username = typedReq.authUser?.username
-  if (!username || username === 'guest') {
-    return null
-  }
-  return username
-}
-
 export const listNotificationsHandler = async (req: Request, res: Response): Promise<void> => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   if (!username) {
     res.status(401).json({ error: 'Authentication required' })
     return
@@ -31,7 +22,7 @@ export const listNotificationsHandler = async (req: Request, res: Response): Pro
 }
 
 export const markNotificationReadHandler = async (req: Request, res: Response): Promise<void> => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   const id = String(req.params.id ?? '')
 
   if (!username) {
@@ -57,7 +48,7 @@ export const markNotificationReadHandler = async (req: Request, res: Response): 
 }
 
 export const holdNotificationHandler = async (req: Request, res: Response): Promise<void> => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   const id = String(req.params.id ?? '')
 
   if (!username) {
@@ -83,7 +74,7 @@ export const holdNotificationHandler = async (req: Request, res: Response): Prom
 }
 
 export const markAllNotificationsReadHandler = async (req: Request, res: Response): Promise<void> => {
-  const username = getUsername(req)
+  const username = getRealUsername(req)
   if (!username) {
     res.status(401).json({ error: 'Authentication required' })
     return

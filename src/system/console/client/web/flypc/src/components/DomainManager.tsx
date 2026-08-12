@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Input, Select, Space, Tag, Typography, message } from 'antd'
+import { apiFetch } from '../services/apiClient'
 
 const { Text, Paragraph } = Typography
 
@@ -28,14 +29,6 @@ type DomainManagerProps = {
   onSetupComplete?: () => void
 }
 
-const buildAuthHeaders = (authToken: string): Headers => {
-  const headers = new Headers({ Accept: 'application/json', 'Content-Type': 'application/json' })
-  if (authToken) {
-    headers.set('Authorization', `Bearer ${authToken}`)
-  }
-  return headers
-}
-
 export const DomainManager: React.FC<DomainManagerProps> = ({
   isAdmin,
   authToken,
@@ -49,11 +42,11 @@ export const DomainManager: React.FC<DomainManagerProps> = ({
   const loadDomain = async (): Promise<void> => {
     setLoading(true)
     try {
-      const response = await fetch('/system/domain', { headers: buildAuthHeaders(authToken) })
-      const payload = (await response.json()) as { ok: boolean; domain: RHostDomainState; error?: string }
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Unable to load domain settings')
-      }
+      const payload = await apiFetch<{ ok: boolean; domain: RHostDomainState }>(
+        '/system/domain',
+        undefined,
+        { token: authToken },
+      )
       setDomain(payload.domain)
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Unable to load domain settings')
@@ -73,15 +66,14 @@ export const DomainManager: React.FC<DomainManagerProps> = ({
 
     setSaving(true)
     try {
-      const response = await fetch('/system/domain', {
-        method: 'PUT',
-        headers: buildAuthHeaders(authToken),
-        body: JSON.stringify({ ...domain, ...extra }),
-      })
-      const payload = (await response.json()) as { ok: boolean; domain: RHostDomainState; error?: string; detail?: string }
-      if (!response.ok) {
-        throw new Error(payload.detail ?? payload.error ?? 'Unable to save domain settings')
-      }
+      const payload = await apiFetch<{ ok: boolean; domain: RHostDomainState }>(
+        '/system/domain',
+        {
+          method: 'PUT',
+          body: JSON.stringify({ ...domain, ...extra }),
+        },
+        { token: authToken },
+      )
       setDomain(payload.domain)
       message.success(extra?.completeInitialSetup ? 'Initial setup complete — desktop mode enabled' : 'Domain settings saved')
       if (extra?.completeInitialSetup) {
@@ -101,15 +93,14 @@ export const DomainManager: React.FC<DomainManagerProps> = ({
 
     setSaving(true)
     try {
-      const response = await fetch('/system/domain/apply-ssl', {
-        method: 'POST',
-        headers: buildAuthHeaders(authToken),
-        body: JSON.stringify({}),
-      })
-      const payload = (await response.json()) as { ok: boolean; domain: RHostDomainState; message?: string; error?: string }
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Unable to apply SSL profile')
-      }
+      const payload = await apiFetch<{ ok: boolean; domain: RHostDomainState; message?: string }>(
+        '/system/domain/apply-ssl',
+        {
+          method: 'POST',
+          body: JSON.stringify({}),
+        },
+        { token: authToken },
+      )
       setDomain(payload.domain)
       message.success(payload.message ?? 'SSL profile regenerated')
     } catch (error) {
@@ -220,7 +211,7 @@ export const DomainManager: React.FC<DomainManagerProps> = ({
         ) : null}
         {domain.caddyfilePath ? (
           <Paragraph style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: '#94a3b8' }}>
-            Caddy profile: {domain.caddyfilePath}
+            Gateway profile: {domain.caddyfilePath}
           </Paragraph>
         ) : null}
       </div>
