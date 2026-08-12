@@ -9,7 +9,10 @@ import { useUpdateSettingMutation } from './store/settingsApi'
 import { AppWindow } from './components/AppWindow'
 import { FileExplorer } from './components/FileExplorer'
 import { NativeWindowContent } from './components/NativeWindowContent'
-import { DomainManager } from './components/DomainManager'
+import { SystemSettingsPanel } from './components/SystemSettingsPanel'
+import { DesktopTaskbar } from './components/DesktopTaskbar'
+import { FloatingSubmenu } from './components/FloatingSubmenu'
+import { NotificationPanel } from './components/NotificationPanel'
 import { WebAppCards } from './components/WebAppCards'
 import { MdClose, MdMinimize } from 'react-icons/md'
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
@@ -30,21 +33,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   UserOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons'
-
-// All available wallpaper IDs (must match files in /resources/vx-{id}.webp)
-const WALLPAPER_IDS = [0, 1, 3, 5, 7, 10, 15, 17, 19, 21, 23, 25, 26, 27, 30, 33]
-
-// Helper function to dynamically calculate text contrast color (black or white) based on background hex
-const getTextColor = (bgColor: string): string => {
-  if (!bgColor || !bgColor.startsWith('#')) return '#ffffff'
-  const r = parseInt(bgColor.slice(1, 3), 16)
-  const g = parseInt(bgColor.slice(3, 5), 16)
-  const b = parseInt(bgColor.slice(5, 7), 16)
-  // standard relative luminance (YIQ) formula
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000
-  return yiq >= 128 ? '#000000' : '#ffffff'
-}
 
 type AppEntry = {
   key: string
@@ -68,10 +58,10 @@ type MemberSummary = {
   username: string
   role: 'Admin' | 'Guest'
   createdAt: string
-  apps: string[]
-  totalStorageBytes: number
-  totalStorageMB: number
-  usagePercent: number
+  apps?: string[]
+  totalStorageBytes?: number
+  totalStorageMB?: number
+  usagePercent?: number
 }
 
 type DesktopBridgeWindow = Window & {
@@ -80,15 +70,27 @@ type DesktopBridgeWindow = Window & {
   }
 }
 
-const APP_ICON_MAP: Record<string, React.ReactNode> = {
-  EditFilled: <EditFilled style={{ color: '#334155' }} />,
-  CodeFilled: <CodeFilled style={{ color: '#334155' }} />,
-  ThunderboltFilled: <ThunderboltFilled style={{ color: '#334155' }} />,
-  DatabaseFilled: <DatabaseFilled style={{ color: '#334155' }} />,
-  FileTextFilled: <FileTextFilled style={{ color: '#334155' }} />,
-  InfoCircleFilled: <InfoCircleFilled style={{ color: '#334155' }} />,
-  AppstoreOutlined: <AppstoreOutlined style={{ color: '#334155' }} />,
+const APP_ICON_COMPONENTS: Record<string, React.ComponentType<{ style?: React.CSSProperties }>> = {
+  EditFilled,
+  CodeFilled,
+  ThunderboltFilled,
+  DatabaseFilled,
+  FileTextFilled,
+  InfoCircleFilled,
+  AppstoreOutlined,
+  GlobalOutlined,
 }
+
+const renderAppIcon = (iconName: string, color?: string): React.ReactNode => {
+  const Icon = APP_ICON_COMPONENTS[iconName] ?? AppstoreOutlined
+  return <Icon style={color ? { color } : undefined} />
+}
+
+const withMenuIconColor = (icon: React.ReactNode, color: string): React.ReactNode => (
+  <span style={{ color, display: 'inline-flex', lineHeight: 0, alignItems: 'center' }}>
+    {icon}
+  </span>
+)
 
 export const appbrick: React.CSSProperties = {
   display: 'flex',
@@ -101,17 +103,19 @@ export const appbrick: React.CSSProperties = {
 
 const hybridAppbrick: React.CSSProperties = {
   ...appbrick,
-  gap: '0',
-  justifyContent: 'space-between',
+  gap: '6px',
+  justifyContent: 'center',
   border: 'none',
-  borderRadius: 5,
-  padding: '10px 7px 8px',
-  fontSize: '10px',
+  borderRadius: 8,
+  padding: '12px 8px 10px',
+  fontSize: '12px',
   textAlign: 'center',
   background: '#ffffffca',
   backdropFilter: 'blur(7px)',
-  width: '3.35rem',
-  height: '3.75rem',
+  width: 'calc(3.35rem + 3px)',
+  height: 'calc(4.15rem + 3px)',
+  boxShadow: '0 2px 10px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.08)',
+  boxSizing: 'border-box',
 }
 
 const formatBytes = (value: number): string => {
@@ -140,6 +144,7 @@ const Dashboard: React.FC = () => {
   const [openAppControls, setOpenAppControls] = React.useState<Record<string, boolean>>({})
   const [hoveredClosableMenuKey, setHoveredClosableMenuKey] = React.useState<string | null>(null)
   const [openedAccountsMenuArea, setOpenedAccountsMenuArea] = React.useState<'sidebar' | 'footer' | null>(null)
+  const sidebarAccountHubRef = React.useRef<HTMLDivElement>(null)
   const [apps, setApps] = React.useState<AppEntry[]>([])
   const [appsError, setAppsError] = React.useState<string | null>(null)
   const [authToken, setAuthToken] = React.useState<string>(() => window.localStorage.getItem('flypc-auth-token') ?? '')
@@ -272,7 +277,7 @@ const Dashboard: React.FC = () => {
 
     const handleOutsidePointer = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.closest('[data-accounts-hub]')) {
+      if (target?.closest('[data-accounts-hub]') || target?.closest('[data-accounts-submenu]')) {
         return
       }
 
@@ -379,7 +384,7 @@ const Dashboard: React.FC = () => {
     setAccountError('')
   }
 
-  const handleLogin = async () => {
+  const handleLogin = async (): Promise<void> => {
     clearAccountFeedback()
     try {
       const payload = await apiFetch<{ ok: boolean; token: string; user: AuthUser }>('/user/login', {
@@ -394,6 +399,8 @@ const Dashboard: React.FC = () => {
       setAccountMessage('Logged in successfully.')
       setLoginPassword('')
       setAppSessionVersion((current) => current + 1)
+      setActiveWindowId('apps')
+      Modal.destroyAll()
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : String(error))
     }
@@ -405,7 +412,7 @@ const Dashboard: React.FC = () => {
       content: 'Signing in will refresh all currently opened app sessions. Do you want to proceed?',
       okText: 'Proceed and sign in',
       cancelText: 'Cancel',
-      onOk: handleLogin,
+      onOk: () => handleLogin(),
     })
   }
 
@@ -529,7 +536,7 @@ const Dashboard: React.FC = () => {
   const isShortcutSurface = isAppsShortcutView
   const desktopWindowHeight = isDesktop && isLandscape ? 'calc(100% - 75px)' : '100%'
   const isWindowMaximized = !isDashboard && isMaximized && (isDesktop || isHybrid || isSharp || isWeb)
-  const shouldHideDashboardWindowArea = isDashboard && !isLandscape && isDashboardMenuVisible
+  const shouldHideDashboardWindowArea = false
   const activeAppKey = activeWindowId.startsWith('app:') ? activeWindowId.slice(4) : null
   const hasRightControlsOpen = Boolean(activeAppKey && openAppControls[activeAppKey] && controlsSide === 'right')
   const hasRightControls = Boolean(activeAppKey && controlsSide === 'right')
@@ -540,12 +547,14 @@ const Dashboard: React.FC = () => {
   const primaryColor = primary || '#597ef7'
   const secondaryColor = secondary || '#85a5ff'
   const isWhitePalette = activeTheme === 'White'
-  const useLightRightControlTitleButtons = isHybrid && hasRightControls
-  const titleButtonIconColor = useLightRightControlTitleButtons ? '#ffffff' : '#334155'
-  const titleButtonBackground = useLightRightControlTitleButtons ? 'transparent' : '#f1f5f9'
-  const windowTitleColor = !useLightRightControlTitleButtons && isWhitePalette && hasRightControls
-    ? '#4b5563'
-    : hasRightControls || isWeb ? '#ffffff' : 'black'
+  const whitePaletteChromeColor = '#334155'
+  const useLightTitleBar = isDashboard && !hasRightControls
+  const titleButtonIconColor = isWhitePalette || useLightTitleBar ? whitePaletteChromeColor : '#ffffff'
+  const windowTitleColor = isWhitePalette
+    ? whitePaletteChromeColor
+    : useLightTitleBar
+      ? 'black'
+      : '#ffffff'
 
   // Active tab label for the window title bar
   const activeLabel =
@@ -557,30 +566,40 @@ const Dashboard: React.FC = () => {
           ? 'Members'
           : menuItems.find((m) => m.key === activeWindowId)?.label ?? 'Console'
   const activeWindowIcon = activeWindowId.startsWith('app:')
-    ? APP_ICON_MAP[openApps.find((app) => `app:${app.key}` === activeWindowId)?.icon ?? ''] ?? <AppstoreOutlined />
+    ? renderAppIcon(openApps.find((app) => `app:${app.key}` === activeWindowId)?.icon ?? '')
     : activeWindowId === 'accounts' || activeWindowId === 'members'
       ? <UserOutlined />
       : menuItems.find((item) => item.key === activeWindowId)?.icon ?? <AppstoreOutlined />
   const visibleMenuItems = [
     menuItems[0],
     menuItems[1],
-    ...openApps.map((app) => ({ key: `app:${app.key}`, label: app.name, icon: APP_ICON_MAP[app.icon] ?? <AppstoreOutlined /> })),
+    ...openApps.map((app) => ({ key: `app:${app.key}`, label: app.name, icon: renderAppIcon(app.icon) })),
     ...menuItems.slice(2, 4),
     accountHubMenuItem,
     ...menuItems.slice(4),
   ]
   const sidebarMenuItems = visibleMenuItems.filter((item) => item.key !== 'settings')
   const settingsMenuItem = menuItems.find((item) => item.key === 'settings')!
-  const desktopTaskbarWidth = `min(calc(100vw - 3rem), ${Math.max(280, 65 + visibleMenuItems.length * 42)}px)`
+  const webPrimaryNavItems = [
+    ...menuItems.filter((item) => item.key !== 'settings'),
+    { key: 'accounts', label: 'Accounts', icon: <UserOutlined /> },
+  ]
 
   // Determine contrasting text colors dynamically
-  const menuBarTextColor = getTextColor(primaryColor)
-  const nonWebWhitePaletteMenuColor = isWhitePalette ? '#4b5563' : undefined
+  const getMenuItemColor = (isActive: boolean): string => {
+    if (isWhitePalette) {
+      return whitePaletteChromeColor
+    }
+    if (isActive) {
+      return '#ffffff'
+    }
+    return 'rgba(255, 255, 255, 0.68)'
+  }
   const launcherApps = apps.map((app) => ({
     key: app.key,
     name: app.name,
     description: app.description,
-    iconNode: APP_ICON_MAP[app.icon] ?? <AppstoreOutlined />,
+    iconNode: renderAppIcon(app.icon),
     published: app.published,
     open: () => handleAppOpen(app),
   }))
@@ -759,6 +778,7 @@ const Dashboard: React.FC = () => {
                 return (
                   <div
                     key={item.key}
+                    ref={isAccountHubItem ? sidebarAccountHubRef : undefined}
                     data-accounts-hub={isAccountHubItem ? 'sidebar' : undefined}
                     style={{ position: 'relative' }}
                     onMouseEnter={() => {
@@ -799,11 +819,13 @@ const Dashboard: React.FC = () => {
                         textAlign: 'left',
                         transition: 'all 0.15s ease',
                         background: isActive ? secondaryColor : 'transparent',
-                        color: nonWebWhitePaletteMenuColor ?? (isDashboard ? '#ffffff' : isActive ? '#ffffff' : `${menuBarTextColor}bb`),
+                        color: getMenuItemColor(isActive),
                         boxShadow: 'none',
                       }}
                     >
-                      <span style={{ fontSize: isDashboard ? '0.85rem' : isHybrid ? '17px' : '21px', flexShrink: 0, color: nonWebWhitePaletteMenuColor ?? '#ffffff' }}>{item.icon}</span>
+                      <span style={{ fontSize: isDashboard ? '0.85rem' : isHybrid ? '17px' : '21px', flexShrink: 0 }}>
+                        {withMenuIconColor(item.icon, getMenuItemColor(isActive))}
+                      </span>
                       {isDashboard && (
                         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {item.label}
@@ -824,7 +846,7 @@ const Dashboard: React.FC = () => {
                             borderRadius: '4px',
                             display: 'grid',
                             placeItems: 'center',
-                            color: nonWebWhitePaletteMenuColor ?? '#ffffff',
+                            color: getMenuItemColor(isActive),
                             opacity: showMenuClose ? 1 : 0,
                             pointerEvents: showMenuClose ? 'auto' : 'none',
                             transition: 'opacity 0.15s ease',
@@ -834,67 +856,64 @@ const Dashboard: React.FC = () => {
                         </span>
                       )}
                     </button>
-                    {showAccountsSubmenu && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: sidebarOnRight
-                            ? 'auto'
-                            : isDashboard
-                              ? 'calc(100% + 12px)'
-                              : 'calc(100% + 8px)',
-                          right: sidebarOnRight
-                            ? isDashboard
-                              ? 'calc(100% + 12px)'
-                              : 'calc(100% + 8px)'
-                            : 'auto',
-                          transform: 'translateY(-50%)',
-                          minWidth: '150px',
-                          padding: '0.35rem',
-                          borderRadius: '8px',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          background: primaryColor,
-                          boxShadow: '0 12px 26px rgba(15, 23, 42, 0.3)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.2rem',
-                          zIndex: 15,
-                        }}
-                      >
-                        {accountSubmenuItems.map((subItem) => (
-                          <button
-                            key={subItem.key}
-                            title={subItem.label}
-                            onClick={() => {
-                              handleWindowChange(subItem.key)
-                              setOpenedAccountsMenuArea(null)
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              width: '100%',
-                              padding: '0.42rem 0.58rem',
-                              border: 'none',
-                              borderRadius: '6px',
-                              background: activeWindowId === subItem.key ? secondaryColor : 'transparent',
-                              color: nonWebWhitePaletteMenuColor ?? '#ffffff',
-                              fontSize: '0.75rem',
-                              textAlign: 'left',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>{subItem.icon}</span>
-                            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subItem.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <FloatingSubmenu
+                      open={showAccountsSubmenu}
+                      anchorRef={sidebarAccountHubRef}
+                      placement={sidebarOnRight ? 'left' : 'right'}
+                      zIndex={1200}
+                      menuStyle={{
+                        minWidth: '150px',
+                        padding: '0.35rem',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        background: primaryColor,
+                        boxShadow: '0 12px 26px rgba(15, 23, 42, 0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.2rem',
+                      }}
+                    >
+                      {accountSubmenuItems.map((subItem) => (
+                        <button
+                          key={subItem.key}
+                          title={subItem.label}
+                          onClick={() => {
+                            handleWindowChange(subItem.key)
+                            setOpenedAccountsMenuArea(null)
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            width: '100%',
+                            padding: '0.42rem 0.58rem',
+                            border: 'none',
+                            borderRadius: '6px',
+                            background: activeWindowId === subItem.key ? secondaryColor : 'transparent',
+                            color: getMenuItemColor(activeWindowId === subItem.key),
+                            fontSize: '0.75rem',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>
+                            {withMenuIconColor(subItem.icon, getMenuItemColor(activeWindowId === subItem.key))}
+                          </span>
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subItem.label}</span>
+                        </button>
+                      ))}
+                    </FloatingSubmenu>
                   </div>
                 )
               })}
             </div>
+
+            <NotificationPanel
+              authToken={authToken}
+              isDashboard={isDashboard}
+              iconColor={getMenuItemColor(false)}
+              primaryColor={primaryColor}
+            />
 
             <button
               title={settingsMenuItem.label}
@@ -906,7 +925,7 @@ const Dashboard: React.FC = () => {
                 border: 'none',
                 background: activeWindowId === 'settings' ? secondaryColor : 'transparent',
                 fontSize: '0.78rem',
-                color: nonWebWhitePaletteMenuColor ?? '#ffffff',
+                color: getMenuItemColor(activeWindowId === 'settings'),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: isDashboard ? 'flex-start' : 'center',
@@ -914,7 +933,9 @@ const Dashboard: React.FC = () => {
                 cursor: 'pointer',
               }}
             >
-              <span style={{ fontSize: isDashboard ? '0.85rem' : '15px', flexShrink: 0 }}>{settingsMenuItem.icon}</span>
+              <span style={{ fontSize: isDashboard ? '0.85rem' : '15px', flexShrink: 0 }}>
+                {withMenuIconColor(settingsMenuItem.icon, getMenuItemColor(activeWindowId === 'settings'))}
+              </span>
               {isDashboard && <span>Settings</span>}
             </button>
           </aside>
@@ -929,21 +950,20 @@ const Dashboard: React.FC = () => {
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: isLandscape ? 'center' : 'flex-end',
-              gap: isLandscape ? '2.5rem' : 0,
-              padding: isLandscape ? 0 : '0 1rem',
+              gap: '0.75rem',
+              padding: '0 1rem',
               boxSizing: 'border-box',
               borderBottom: '1px solid rgba(255, 255, 255, 0.18)',
             }}
           >
             <div
               style={{
-                position: 'absolute',
-                left: '3rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.65rem',
-                color: '#ffffff',
+                flexShrink: 0,
+                minWidth: isLandscape ? '9rem' : undefined,
+                color: isWhitePalette ? whitePaletteChromeColor : '#ffffff',
                 fontSize: '0.95rem',
                 fontWeight: 600,
                 letterSpacing: '0.08em',
@@ -952,105 +972,174 @@ const Dashboard: React.FC = () => {
               <img src="/logo.png" alt="FlyPC" style={{ width: '1.8rem', height: '1.8rem', objectFit: 'contain' }} />
               <span>FlyPC</span>
             </div>
-            {isLandscape && [...menuItems, { key: 'accounts', label: 'Accounts' }].map((item) => {
-              const isActive = activeWindowId === item.key
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => handleWindowChange(item.key as WindowId)}
-                  style={{
-                    height: '100%',
-                    padding: '0 0.1rem',
-                    border: 'none',
-                    borderBottom: isActive ? `2px solid ${secondaryColor}` : '2px solid transparent',
-                    background: 'transparent',
-                    color: '#ffffff',
-                    fontSize: '0.76rem',
-                    fontWeight: 500,
-                    letterSpacing: '0.04em',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {item.label}
-                </button>
-              )
-            })}
-            {!isLandscape && (
-              <>
-                <button
-                  type="button"
-                  aria-expanded={isWebPortraitMenuOpen}
-                  aria-controls="web-portrait-menu"
-                  onClick={() => setIsWebPortraitMenuOpen((open) => !open)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.5rem 0.7rem',
-                    border: '1px solid rgba(255, 255, 255, 0.28)',
-                    borderRadius: '4px',
-                    background: '#ffffff12',
-                    color: '#ffffff',
-                    fontSize: '0.76rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span>{activeLabel}</span>
-                  <span aria-hidden="true">▾</span>
-                </button>
-                {isWebPortraitMenuOpen && (
-                  <div
-                    id="web-portrait-menu"
-                    role="menu"
+
+            {isLandscape && (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '2.5rem',
+                  height: '100%',
+                  minWidth: 0,
+                }}
+              >
+                {webPrimaryNavItems.map((item) => {
+                  const isActive = activeWindowId === item.key
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => handleWindowChange(item.key as WindowId)}
+                      style={{
+                        height: '100%',
+                        padding: '0 0.1rem',
+                        border: 'none',
+                        borderBottom: isActive ? `2px solid ${secondaryColor}` : '2px solid transparent',
+                        background: 'transparent',
+                        color: getMenuItemColor(isActive),
+                        fontSize: '0.76rem',
+                        fontWeight: 500,
+                        letterSpacing: '0.04em',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                marginLeft: isLandscape ? 0 : 'auto',
+                flexShrink: 0,
+                height: isLandscape ? '100%' : undefined,
+              }}
+            >
+              {!isLandscape && (
+                <>
+                  <button
+                    type="button"
+                    aria-expanded={isWebPortraitMenuOpen}
+                    aria-controls="web-portrait-menu"
+                    onClick={() => setIsWebPortraitMenuOpen((open) => !open)}
                     style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 0.35rem)',
-                      right: '1rem',
-                      minWidth: '10.5rem',
-                      padding: '0.3rem',
-                      border: '1px solid rgba(255, 255, 255, 0.22)',
-                      borderRadius: '4px',
-                      background: '#1f2939e8',
-                      backdropFilter: 'blur(8px)',
-                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.15rem',
-                      zIndex: 20,
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.5rem 0.7rem',
+                      border: '1px solid rgba(255, 255, 255, 0.28)',
+                      borderRadius: '4px',
+                      background: '#ffffff12',
+                      color: isWhitePalette ? whitePaletteChromeColor : '#ffffff',
+                      fontSize: '0.76rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
                     }}
                   >
-                    {[...menuItems, { key: 'accounts', label: 'Accounts' }].map((item) => {
-                      const isActive = activeWindowId === item.key
-                      return (
-                        <button
-                          key={item.key}
-                          role="menuitem"
-                          type="button"
-                          onClick={() => {
-                            handleWindowChange(item.key as WindowId)
-                            setIsWebPortraitMenuOpen(false)
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '0.55rem 0.65rem',
-                            border: 'none',
-                            borderRadius: '3px',
-                            background: isActive ? '#ffffff1f' : 'transparent',
-                            color: '#ffffff',
-                            fontSize: '0.78rem',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {item.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </>
-            )}
+                    <span>{activeLabel}</span>
+                    <span aria-hidden="true">▾</span>
+                  </button>
+                  {isWebPortraitMenuOpen && (
+                    <div
+                      id="web-portrait-menu"
+                      role="menu"
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 0.35rem)',
+                        right: '1rem',
+                        minWidth: '10.5rem',
+                        padding: '0.3rem',
+                        border: '1px solid rgba(255, 255, 255, 0.22)',
+                        borderRadius: '4px',
+                        background: '#1f2939e8',
+                        backdropFilter: 'blur(8px)',
+                        boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.15rem',
+                        zIndex: 20,
+                      }}
+                    >
+                      {webPrimaryNavItems.map((item) => {
+                        const isActive = activeWindowId === item.key
+                        return (
+                          <button
+                            key={item.key}
+                            role="menuitem"
+                            type="button"
+                            onClick={() => {
+                              handleWindowChange(item.key as WindowId)
+                              setIsWebPortraitMenuOpen(false)
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '0.55rem 0.65rem',
+                              border: 'none',
+                              borderRadius: '3px',
+                              background: isActive ? '#ffffff1f' : 'transparent',
+                              color: getMenuItemColor(isActive),
+                              fontSize: '0.78rem',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {item.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <NotificationPanel
+                authToken={authToken}
+                isDashboard={false}
+                compact
+                iconColor={getMenuItemColor(false)}
+                primaryColor={primaryColor}
+              />
+
+              <button
+                type="button"
+                title={settingsMenuItem.label}
+                aria-label={settingsMenuItem.label}
+                onClick={() => handleWindowChange('settings')}
+                style={{
+                  height: isLandscape ? '100%' : undefined,
+                  padding: isLandscape ? '0 0.1rem' : '0.5rem',
+                  border: 'none',
+                  borderBottom: isLandscape && activeWindowId === 'settings'
+                    ? `2px solid ${secondaryColor}`
+                    : isLandscape
+                      ? '2px solid transparent'
+                      : undefined,
+                  borderRadius: isLandscape ? 0 : '6px',
+                  background: !isLandscape && activeWindowId === 'settings' ? 'rgba(148, 163, 184, 0.18)' : 'transparent',
+                  color: getMenuItemColor(activeWindowId === 'settings'),
+                  fontSize: isLandscape ? '0.76rem' : '15px',
+                  fontWeight: isLandscape ? 500 : undefined,
+                  letterSpacing: isLandscape ? '0.04em' : undefined,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {isLandscape
+                  ? settingsMenuItem.label
+                  : withMenuIconColor(settingsMenuItem.icon, getMenuItemColor(activeWindowId === 'settings'))}
+              </button>
+            </div>
           </nav>
         )}
 
@@ -1124,7 +1213,7 @@ const Dashboard: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   padding: '0',
-                  background: hasRightControls || isWeb ? 'transparent' : 'rgba(255, 255, 255, 0.81)',
+                  background: hasRightControls || !useLightTitleBar ? 'transparent' : 'rgba(255, 255, 255, 0.81)',
                   color: 'white',
                   overflow: 'hidden',
                   position: hasRightControls ? 'absolute' : 'relative',
@@ -1158,8 +1247,8 @@ const Dashboard: React.FC = () => {
                       right: hasRightControls
                         ? '0'
                         : activeWindowId === 'apps' ? '4.5rem' : '6.75rem',
-                      width: isHybrid ? '26px' : '32px',
-                      height: isHybrid ? '26px' : '32px',
+                      width: '32px',
+                      height: '32px',
                       padding: '0',
                       borderRadius: '0',
                       border: 'none',
@@ -1183,7 +1272,7 @@ const Dashboard: React.FC = () => {
                   minHeight: '100%',
                   padding: hasRightControls ? '4px 2.8rem 4px 0.85rem' : '4px 0.35rem',
                   boxSizing: 'border-box',
-                  background: hasRightControls ? primaryColor : isWeb ? 'transparent' : 'rgba(255, 255, 255, 0.81)',
+                  background: hasRightControls ? primaryColor : useLightTitleBar ? 'rgba(255, 255, 255, 0.81)' : 'transparent',
                   marginLeft: '0',
                   transition: 'width 260ms ease, margin-left 260ms ease',
                 }}>
@@ -1211,8 +1300,7 @@ const Dashboard: React.FC = () => {
                     gap: '6px',
                     padding: '4px 6px',
                     boxSizing: 'border-box',
-                    borderRadius: '5rem',
-                    background: 'transparent'
+                    background: 'transparent',
                   }}>
                     <Button
                       id="btn-min"
@@ -1223,10 +1311,10 @@ const Dashboard: React.FC = () => {
                       style={{
                         width: '26px',
                         height: '26px',
-                        padding: '0',
-                        borderRadius: '50%',
+                        padding: 0,
+                        borderRadius: 0,
                         border: 'none',
-                        background: titleButtonBackground,
+                        background: 'transparent',
                         display: 'grid',
                         placeItems: 'center',
                         cursor: 'pointer',
@@ -1245,10 +1333,10 @@ const Dashboard: React.FC = () => {
                       style={{
                         width: '26px',
                         height: '26px',
-                        padding: '0',
-                        borderRadius: '50%',
+                        padding: 0,
+                        borderRadius: 0,
                         border: 'none',
-                        background: titleButtonBackground,
+                        background: 'transparent',
                         display: 'grid',
                         placeItems: 'center',
                         cursor: 'pointer',
@@ -1266,10 +1354,10 @@ const Dashboard: React.FC = () => {
                         style={{
                           width: '26px',
                           height: '26px',
-                          padding: '0',
-                          borderRadius: '50%',
+                          padding: 0,
+                          borderRadius: 0,
                           border: 'none',
-                          background: titleButtonBackground,
+                          background: 'transparent',
                           display: 'grid',
                           placeItems: 'center',
                           cursor: 'pointer',
@@ -1335,30 +1423,32 @@ const Dashboard: React.FC = () => {
                         >
                           <div
                             style={{
-                              width: isHybrid ? '24px' : '56px',
-                              height: isHybrid ? '24px' : '56px',
+                              width: isHybrid ? '26px' : '56px',
+                              height: isHybrid ? '26px' : '56px',
                               borderRadius: isHybrid ? '0' : '14px',
-                              background: isHybrid ? 'transparent' : 'rgba(255,255,255,0.2)',
+                              background: isHybrid ? 'transparent' : 'rgba(255,255,255,0.35)',
                               border: isHybrid ? 'none' : '1px solid rgba(255,255,255,0.25)',
                               color: '#334155',
                               display: 'grid',
                               placeItems: 'center',
-                              fontSize: isHybrid ? '1rem' : '1.45rem',
+                              fontSize: isHybrid ? 'calc(1rem + 2px)' : '1.45rem',
                               backdropFilter: isHybrid ? 'none' : 'blur(3px)',
                             }}
                           >
                             <span style={{ filter: isAppsShortcutView ? 'saturate(0.65)' : 'none' }}>{app.iconNode}</span>
                           </div>
                           <div
+                            className="app-brick-label"
                             style={{
-                              fontSize: isHybrid ? '10px' : '0.78rem',
+                              fontSize: isHybrid ? '12px' : '0.78rem',
                               fontWeight: 400,
                               color: isHybrid ? '#0f172a' : '#ffffff',
                               textShadow: isHybrid ? 'none' : '0 1px 2px rgba(0,0,0,0.55)',
                               textAlign: 'center',
                               lineHeight: 1.2,
-                              marginTop: isHybrid ? '4px' : '0',
+                              padding: isHybrid ? '0 2px' : '0',
                             }}
+                            title={app.name}
                           >
                             {app.name}
                           </div>
@@ -1424,7 +1514,7 @@ const Dashboard: React.FC = () => {
                               {app.iconNode}
                             </div>
                             <div style={{ width: '100%' }}>
-                              <div style={{ fontSize: '0.95rem', fontWeight: 500, color: '#0f172a' }}>{app.name}</div>
+                              <div className="app-card-label" style={{ fontSize: '0.95rem', fontWeight: 500, color: '#0f172a' }} title={app.name}>{app.name}</div>
                               <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.25rem' }}>
                                 {app.published ? 'Published' : 'Unpublished'}
                               </div>
@@ -1659,9 +1749,9 @@ const Dashboard: React.FC = () => {
                           <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{member.username}</td>
                           <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{member.role}</td>
                           <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{new Date(member.createdAt).toLocaleString()}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{member.apps.length ? member.apps.join(', ') : '-'}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{formatBytes(member.totalStorageBytes)}</td>
-                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{member.usagePercent.toFixed(2)}%</td>
+                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{(member.apps ?? []).length ? (member.apps ?? []).join(', ') : '-'}</td>
+                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{formatBytes(member.totalStorageBytes ?? 0)}</td>
+                          <td style={{ padding: '0.6rem 0.65rem', borderBottom: '1px solid #f1f5f9' }}>{(member.usagePercent ?? 0).toFixed(2)}%</td>
                         </tr>
                       ))}
                       {members.length === 0 && (
@@ -1678,263 +1768,26 @@ const Dashboard: React.FC = () => {
 
               <NativeWindowContent isActive={activeWindowId === 'settings'}>
                 <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>System Configuration</h2>
-                <p style={{ margin: '0 0 1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                  Manage domain registration, HTTPS certificates, interface layout, and color themes.
+                <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  Manage domain registration, network layout, and appearance settings.
                 </p>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-                    Domain Manager
-                  </h3>
-                  <DomainManager
-                    isAdmin={authUser?.role === 'Admin'}
-                    authToken={authToken}
-                    primaryColor={primaryColor}
-                    onSetupComplete={() => handleLayoutModeChange('desktop')}
-                  />
-                </div>
-
-                {/* Layout Mode Toggles */}
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-                    Layout Mode
-                  </h3>
-                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    {(['desktop', 'dashboard', 'hybrid-console', 'sharp', 'web'] as LayoutMode[]).map((mode) => (
-                      <Button
-                        key={mode}
-                        onClick={() => handleLayoutModeChange(mode)}
-                        type="text"
-                        style={{
-                          padding: '0.6rem 1.2rem',
-                          borderRadius: '8px',
-                          border: layoutMode === mode
-                            ? `2px solid ${primaryColor}`
-                            : '1px solid rgba(0,0,0,0.15)',
-                          background: layoutMode === mode
-                            ? `${primaryColor}15`
-                            : 'transparent',
-                          color: layoutMode === mode
-                            ? primaryColor
-                            : '#475569',
-                          fontWeight: 400,
-                          cursor: 'pointer',
-                          textTransform: 'capitalize',
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        {mode.replace('-', ' ')}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-                    Application Controls
-                  </h3>
-                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    {(['left', 'right'] as const).map((side) => (
-                      <Button
-                        key={side}
-                        onClick={() => handleControlsSideChange(side)}
-                        type="text"
-                        style={{
-                          padding: '0.6rem 1.2rem',
-                          borderRadius: '8px',
-                          border: controlsSide === side ? `2px solid ${primaryColor}` : '1px solid rgba(0,0,0,0.15)',
-                          background: controlsSide === side ? `${primaryColor}15` : 'transparent',
-                          color: controlsSide === side ? primaryColor : '#475569',
-                          fontWeight: 400,
-                          cursor: 'pointer',
-                          textTransform: 'capitalize',
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        {side}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Color Palette Option Toggles */}
-                <div>
-                  <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-                    Color Palette
-                  </h3>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: isLandscape ? 'repeat(5, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))',
-                      gap: '0.5rem',
-                    }}
-                  >
-                    {Object.keys(ColorPalette.options).map((themeName) => {
-                      const isActive = activeTheme === themeName
-                      const themeColors = ColorPalette.options[themeName as keyof typeof ColorPalette.options]
-                      return (
-                        <Button
-                          key={themeName}
-                          onClick={() => handleColorPaletteChange(themeName)}
-                          type="text"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.5rem 0.75rem',
-                            borderRadius: '8px',
-                            border: isActive
-                              ? `2px solid ${themeColors[0]}`
-                              : '1px solid rgba(0,0,0,0.08)',
-                            background: isActive
-                              ? `${themeColors[0]}15`
-                              : 'rgba(0,0,0,0.02)',
-                            color: '#334155',
-                            cursor: 'pointer',
-                            fontSize: '0.85rem',
-                            transition: 'all 0.2s',
-                            textAlign: 'left',
-                          }}
-                        >
-                          <span style={{ fontWeight: 400 }}>{themeName}</span>
-                          <span
-                            style={{
-                              width: '12px',
-                              height: '12px',
-                              borderRadius: '50%',
-                              background: themeColors[0],
-                              border: '1px solid rgba(255,255,255,0.3)',
-                            }}
-                          />
-                        </Button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {!isDashboard && (
-                  <div
-                    style={{
-                      marginTop: '1.25rem',
-                      width: isLandscape ? '30vw' : '100%',
-                      maxWidth: '100%',
-                      marginLeft: 'auto',
-                      marginRight: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      ['--wallpaper-accent' as string]: primaryColor,
-                    }}
-                  >
-                    {/* Wallpaper Picker */}
-                    <h3 style={{ fontSize: '0.72rem', marginBottom: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500, alignSelf: 'flex-start' }}>
-                      Wallpaper
-                    </h3>
-
-                    {/* Active wallpaper preview */}
-                    <div style={{ marginBottom: 0, width: '100%' }}>
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 0.5rem' }}>Active</p>
-                      <div
-                        style={{
-                          width: '100%',
-                          height: '160px',
-                          borderRadius: 0,
-                          overflow: 'hidden',
-                          border: 'none',
-                          boxShadow: 'none',
-                          position: 'relative',
-                        }}
-                      >
-                        <img
-                          src={`/resources/vx-${activeWallp}.webp`}
-                          alt={`Wallpaper ${activeWallp}`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        />
-                        <div
-                          style={{
-                            position: 'absolute',
-                            bottom: '8px',
-                            right: '10px',
-                            background: 'rgba(0,0,0,0.55)',
-                            backdropFilter: 'blur(6px)',
-                            color: '#fff',
-                            fontSize: '0.75rem',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: 0,
-                            fontWeight: 500,
-                          }}
-                        >
-                          vx-{activeWallp}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Wallpaper thumbnail grid */}
-                    <div
-                      className="wallpaper-scroll"
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        flexWrap: 'nowrap',
-                        gap: '4px',
-                        overflowX: 'auto',
-                        overflowY: 'hidden',
-                        padding: '2px 0',
-                      }}
-                    >
-                      {WALLPAPER_IDS.filter((id) => id !== activeWallp).map((id) => (
-                        <Button
-                          key={id}
-                          onClick={() => handleWallpaperChange(id)}
-                          title={`vx-${id}`}
-                          type="text"
-                          style={{
-                            flex: '0 0 auto',
-                            width: '110px',
-                            padding: 0,
-                            border: '2px solid transparent',
-                            borderRadius: 0,
-                            overflow: 'hidden',
-                            cursor: 'pointer',
-                            background: 'none',
-                            transition: 'border-color 0.2s, transform 0.2s',
-                            height: '67px',
-                            display: 'block',
-                            position: 'relative',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = primaryColor
-                            e.currentTarget.style.transform = 'scale(1.04)'
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'transparent'
-                            e.currentTarget.style.transform = 'scale(1)'
-                          }}
-                        >
-                          <img
-                            src={`/resources/vx-${id}.webp`}
-                            alt={`Wallpaper ${id}`}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                          />
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: '4px',
-                              right: '5px',
-                              background: 'rgba(0,0,0,0.5)',
-                              color: '#fff',
-                              fontSize: '0.65rem',
-                              padding: '0.1rem 0.3rem',
-                              borderRadius: 0,
-                            }}
-                          >
-                            vx-{id}
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <SystemSettingsPanel
+                  isLandscape={isLandscape}
+                  isDashboard={isDashboard}
+                  layoutMode={layoutMode}
+                  controlsSide={controlsSide}
+                  activeTheme={activeTheme}
+                  activeWallp={activeWallp}
+                  primaryColor={primaryColor}
+                  isAdmin={authUser?.role === 'Admin'}
+                  authToken={authToken}
+                  onLayoutModeChange={handleLayoutModeChange}
+                  onControlsSideChange={handleControlsSideChange}
+                  onColorPaletteChange={handleColorPaletteChange}
+                  onWallpaperChange={handleWallpaperChange}
+                  onDomainSetupComplete={() => handleLayoutModeChange('desktop')}
+                />
               </NativeWindowContent>
               {openApps.map((app) => (
                 <div
@@ -1965,129 +1818,20 @@ const Dashboard: React.FC = () => {
 
         {/* Bottom task bar for Desktop and Sharp layouts */}
         {(isDesktop || isSharp) && (
-          <footer
-            id="menubar"
-            style={{
-              display: isWindowMaximized ? 'none' : 'flex',
-              position: 'absolute',
-              bottom: isSharp ? 'clamp(1rem, 3.5vw, 2.5rem)' : '18px',
-              left: isSharp ? 'clamp(1rem, 6vw, 5rem)' : '50%',
-              right: isSharp ? 'clamp(1rem, 6vw, 5rem)' : 'auto',
-              width: isSharp ? undefined : desktopTaskbarWidth,
-              transform: isSharp ? 'none' : 'translateX(-50%)',
-              height: isSharp ? '40px' : '48px',
-              padding: isSharp ? '0' : '0 0.45rem',
-              alignItems: 'center',
-              justifyContent: isSharp ? 'flex-start' : 'center',
-              gap: isSharp ? '0.2rem' : '0.35rem',
-              background: primaryColor,
-              borderRadius: isSharp ? '0' : '14px',
-              border: isSharp ? 'none' : '1px solid rgba(255, 255, 255, 0.15)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.22)',
-              zIndex: 10,
-              overflow: 'visible',
-              maxWidth: 'calc(100vw - 3rem)',
-              opacity: 0.91,
-              backdropFilter: 'blur(7px)',
-            }}
-          >
-            {visibleMenuItems.map((item) => {
-              const isAccountHubItem = item.key === 'account-hub'
-              const isActive = isAccountHubItem ? activeWindowId === 'accounts' || activeWindowId === 'members' : activeWindowId === item.key
-              const showAccountsSubmenu = isAccountHubItem && openedAccountsMenuArea === 'footer'
-              return (
-                <div
-                  key={item.key}
-                  data-accounts-hub={isAccountHubItem ? 'footer' : undefined}
-                  style={{
-                    position: 'relative',
-                    flexShrink: 0,
-                    marginLeft: item.key === 'settings' ? 'auto' : undefined,
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      if (isAccountHubItem) {
-                        setOpenedAccountsMenuArea((current) => (current === 'footer' ? null : 'footer'))
-                        return
-                      }
-                      handleWindowChange(item.key as WindowId)
-                    }}
-                    title={item.label}
-                    style={{
-                      width: isSharp ? 'auto' : '36px',
-                      height: isSharp ? '42px' : '36px',
-                      padding: isSharp ? '0 0.8rem' : 0,
-                      borderRadius: isSharp ? '0' : '9px',
-                      border: 'none',
-                      flexShrink: 0,
-                      background: isActive ? secondaryColor : 'transparent',
-                      color: nonWebWhitePaletteMenuColor ?? '#ffffff',
-                      fontSize: isSharp ? '0.76rem' : '1rem',
-                      cursor: 'pointer',
-                      display: 'grid',
-                      gridTemplateColumns: isSharp ? 'auto auto' : undefined,
-                      gap: isSharp ? '0.45rem' : 0,
-                      placeItems: 'center',
-                      transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
-                      boxShadow: isActive ? `0 4px 14px ${secondaryColor}55` : 'none',
-                    }}
-                  >
-                    {item.icon}
-                    {isSharp && <span>{item.label}</span>}
-                  </button>
-                  {showAccountsSubmenu && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: 'calc(100% + 12px)',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        minWidth: '155px',
-                        padding: '0.35rem',
-                        borderRadius: isSharp ? '0' : '9px',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        background: primaryColor,
-                        boxShadow: '0 14px 28px rgba(15, 23, 42, 0.3)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.2rem',
-                        zIndex: 20,
-                      }}
-                    >
-                      {accountSubmenuItems.map((subItem) => (
-                        <button
-                          key={subItem.key}
-                          title={subItem.label}
-                          onClick={() => {
-                            handleWindowChange(subItem.key)
-                            setOpenedAccountsMenuArea(null)
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            width: '100%',
-                            padding: '0.42rem 0.56rem',
-                            border: 'none',
-                            borderRadius: isSharp ? '0' : '6px',
-                            background: activeWindowId === subItem.key ? secondaryColor : 'transparent',
-                            color: nonWebWhitePaletteMenuColor ?? '#ffffff',
-                            fontSize: '0.75rem',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>{subItem.icon}</span>
-                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subItem.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </footer>
+          <DesktopTaskbar
+            items={visibleMenuItems}
+            accountSubmenuItems={accountSubmenuItems}
+            activeWindowId={activeWindowId}
+            openedAccountsMenuArea={openedAccountsMenuArea}
+            setOpenedAccountsMenuArea={setOpenedAccountsMenuArea}
+            isSharp={isSharp}
+            isWindowMaximized={isWindowMaximized}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            getMenuItemColor={getMenuItemColor}
+            withMenuIconColor={withMenuIconColor}
+            onWindowChange={(key) => handleWindowChange(key as WindowId)}
+          />
         )}
       </div>
     </div>

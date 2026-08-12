@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Sequelize } from 'sequelize'
 import { Umzug, SequelizeStorage } from 'umzug'
 import { initUserModel, UserModel } from './models/User.model.js'
+import { initNotificationModel } from './models/Notification.model.js'
 import { ensureBlueprintFile, ensureUserPreferencesFromBlueprint } from '../controllers/TenantStorage.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -19,6 +20,7 @@ export const sequelize = new Sequelize({
 })
 
 initUserModel(sequelize)
+initNotificationModel(sequelize)
 
 const migrationGlob = path.resolve(__dirname, 'migrations/!(*.d).{js,ts}')
 

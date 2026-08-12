@@ -39,7 +39,10 @@ const apiFetch = async <T>(url: string, init?: RequestInit): Promise<T> => {
     headers: buildAuthHeaders(init),
   })
 
-  const payload = (await response.json()) as T & { error?: string; detail?: string }
+  const payload = (await response.json()) as T & { error?: string; detail?: string; pending?: boolean }
+  if (response.status === 202) {
+    return payload as T
+  }
   if (!response.ok) {
     throw new Error(payload.detail ?? payload.error ?? `Request failed: ${response.status}`)
   }

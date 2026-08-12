@@ -1,6 +1,39 @@
 import type { Request, Response } from 'express'
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
-import { apexService } from '../services/ApexService.js'
+import { getInstallContext } from '../services/AppControlsService.js'
+import { apexService, type ApexInstallOptions } from '../services/ApexService.js'
+import { loadApexCatalogEntry } from '../lib/ApexCatalog.js'
+import { notificationService } from '../services/NotificationService.js'
+
+const runApexInstallInBackground = (
+  username: string,
+  appKey: string,
+  options: ApexInstallOptions,
+  notificationId: string,
+  appName: string,
+): void => {
+  void (async () => {
+    try {
+      await apexService.installApp(username, appKey, options)
+      await notificationService.update(notificationId, username, {
+        type: 'apex.install.success',
+        title: `${appName} installed`,
+        message: 'The app is ready to open from the launcher.',
+        payload: { appKey, phase: 'success' },
+        status: 'unread',
+      })
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      await notificationService.update(notificationId, username, {
+        type: 'apex.install.failed',
+        title: `${appName} install failed`,
+        message: detail,
+        payload: { appKey, phase: 'failed' },
+        status: 'unread',
+      })
+    }
+  })()
+}
 
 const getUsername = (req: Request): string | null => {
   const typedReq = req as AuthenticatedRequest
@@ -52,6 +85,18 @@ export const getApexCatalogAppHandler = (req: Request, res: Response): void => {
   }
 }
 
+export const getApexInstallContextHandler = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const context = await getInstallContext()
+    res.json({ ok: true, ...context })
+  } catch (error) {
+    res.status(500).json({
+      error: 'Unable to load install context',
+      detail: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 export const installApexAppHandler = async (req: Request, res: Response): Promise<void> => {
   const username = getUsername(req)
   const appKey = String(req.params.appKey ?? '')
@@ -62,8 +107,24 @@ export const installApexAppHandler = async (req: Request, res: Response): Promis
   }
 
   try {
-    const app = await apexService.installApp(username, appKey)
-    res.json({ ok: true, app })
+    const options = (req.body ?? {}) as ApexInstallOptions
+    const entry = loadApexCatalogEntry(appKey)
+    const notification = await notificationService.create({
+      username,
+      type: 'apex.install.pending',
+      title: `Installing ${entry.manifest.name}…`,
+      message: 'Installation is running in the background.',
+      payload: { appKey, phase: 'running' },
+    })
+
+    runApexInstallInBackground(username, appKey, options, notification.id, entry.manifest.name)
+
+    res.status(202).json({
+      ok: true,
+      accepted: true,
+      notificationId: notification.id,
+      message: 'Installation started. You will be notified when it completes.',
+    })
   } catch (error) {
     res.status(500).json({
       error: 'Unable to install application',
