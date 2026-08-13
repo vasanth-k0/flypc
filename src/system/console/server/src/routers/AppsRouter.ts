@@ -10,6 +10,7 @@ import {
 } from '../middleware/appAccess.middleware.js'
 import {
   getAppStatusHandler,
+  pauseAppHandler,
   removeAppHandler,
   startAppHandler,
   stopAppHandler,
@@ -17,13 +18,27 @@ import {
 import { runAppActionHandler } from '../controllers/RunOnceController.js'
 import {
   getApexCatalogAppHandler,
+  getApexInstallContextHandler,
   installApexAppHandler,
   listApexCatalogHandler,
   uninstallApexAppForAllHandler,
   uninstallApexAppHandler,
 } from '../controllers/ApexController.js'
+import {
+  getControlsConfigHandler,
+  getControlsMetaHandler,
+  getControlsNodesHandler,
+  getControlsStatusHandler,
+  getBootStatusHandler,
+  getServiceConfigViewHandler,
+  postControlsRolloutHandler,
+  putControlsConfigHandler,
+  putServiceConfigAdminHandler,
+} from '../controllers/AppControlsController.js'
+import { appProxyHandler } from '../controllers/AppProxyController.js'
 import { getAppViewRoot, getAppsIndexPath, getAppMetadataRoot } from '../lib/PathResolver.js'
 import { loadServiceDefinition } from '../services/ServiceRegistry.js'
+import { getWarmStartProgress } from '../services/AppWarmStartService.js'
 
 const router = express.Router()
 const appsFile = getAppsIndexPath()
@@ -52,10 +67,26 @@ router.get('/apps/list', resolveAppUser, filterAccessibleApps(appsFile), (_req, 
 })
 
 router.get('/apps/apex/catalog', resolveAppUser, listApexCatalogHandler)
+router.get('/apps/apex/install-context', resolveAppUser, getApexInstallContextHandler)
 router.get('/apps/apex/catalog/:appKey', resolveAppUser, getApexCatalogAppHandler)
 router.post('/apps/apex/catalog/:appKey/install', resolveAppUser, installApexAppHandler)
 router.delete('/apps/apex/catalog/:appKey/install', resolveAppUser, uninstallApexAppHandler)
 router.delete('/apps/apex/catalog/:appKey/install/all', resolveAppUser, uninstallApexAppForAllHandler)
+router.get('/apps/warm-start/status', resolveAppUser, (_req, res) => {
+  res.json({ ok: true, progress: getWarmStartProgress() })
+})
+
+router.get('/apps/:appKey/controls/meta', resolveAppUser, requireAppAccess(appsFile), getControlsMetaHandler)
+router.get('/apps/:appKey/controls/config', resolveAppUser, requireAppAccess(appsFile), getControlsConfigHandler)
+router.get('/apps/:appKey/controls/service-config', resolveAppUser, requireAppAccess(appsFile), getServiceConfigViewHandler)
+router.put('/apps/:appKey/controls/service-config', resolveAppUser, requireAppAccess(appsFile), putServiceConfigAdminHandler)
+router.put('/apps/:appKey/controls/config', resolveAppUser, requireAppAccess(appsFile), putControlsConfigHandler)
+router.get('/apps/:appKey/controls/status', resolveAppUser, requireAppAccess(appsFile), getControlsStatusHandler)
+router.get('/apps/:appKey/boot-status', resolveAppUser, requireAppAccess(appsFile), getBootStatusHandler)
+router.post('/apps/:appKey/controls/rollout', resolveAppUser, requireAppAccess(appsFile), postControlsRolloutHandler)
+router.get('/apps/:appKey/controls/nodes', resolveAppUser, requireAppAccess(appsFile), getControlsNodesHandler)
+router.all('/apps/:appKey/proxy', resolveAppUser, requireAppAccess(appsFile), appProxyHandler)
+router.all('/apps/:appKey/proxy/{*path}', resolveAppUser, requireAppAccess(appsFile), appProxyHandler)
 
 router.get('/apps/:appKey/about', resolveAppUser, requireAppAccess(appsFile), (req, res) => {
   const appKey = String(req.params.appKey ?? '')
@@ -72,6 +103,7 @@ router.get('/apps/:appKey/about', resolveAppUser, requireAppAccess(appsFile), (r
 })
 
 router.post('/apps/:appKey/start', resolveAppUser, requireAppAccess(appsFile), startAppHandler)
+router.post('/apps/:appKey/pause', resolveAppUser, requireAppAccess(appsFile), pauseAppHandler)
 router.post('/apps/:appKey/stop', resolveAppUser, requireAppAccess(appsFile), stopAppHandler)
 router.delete('/apps/:appKey/container', resolveAppUser, requireAppAccess(appsFile), removeAppHandler)
 router.get('/apps/:appKey/status', resolveAppUser, requireAppAccess(appsFile), getAppStatusHandler)

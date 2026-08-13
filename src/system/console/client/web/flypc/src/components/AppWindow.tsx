@@ -1,130 +1,98 @@
 import React from 'react'
-import { App, type AppRuntime } from '../apps/App'
+import { AppControlPane } from './AppControlPane'
+import { AppBootChecklist } from './AppBootChecklist'
+import { bindIframeContextMenuBridge } from '../utils/iframeContextMenuBridge'
+import { useAppBoot } from '../hooks/useAppBoot'
+
+import type { ControlsSide, TitleBarStyle } from '../utils/windowLayout'
 
 type AppWindowProps = {
   appKey: string
   appName: string
   controlsOpen: boolean
-  controlsSide: 'left' | 'right'
+  controlsSide: ControlsSide
+  titleBarStyle: TitleBarStyle
   controlsWidth: string
   titleBarHeight: string
   transparentControls: boolean
   showControlsBorder: boolean
+  primaryColor: string
+  partialChrome?: React.ReactNode
 }
 
-const AppControls: React.FC<{ appKey: string; appName: string }> = ({ appKey, appName }) => {
-  const [about, setAbout] = React.useState('')
-
-  React.useEffect(() => {
-    let cancelled = false
-
-    void fetch(`/apps/${encodeURIComponent(appKey)}/about`, {
-      headers: (() => {
-        const headers = new Headers()
-        const authToken = window.localStorage.getItem('flypc-auth-token')
-        if (authToken) {
-          headers.set('Authorization', `Bearer ${authToken}`)
-        }
-        return headers
-      })(),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error('Controls are unavailable.')
-        }
-        return response.text()
-      })
-      .then((content) => {
-        if (!cancelled) {
-          setAbout(content)
-        }
-      })
-      .catch((loadError: unknown) => {
-        if (!cancelled) {
-          setAbout(loadError instanceof Error ? loadError.message : 'Controls are unavailable.')
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [appKey])
-
-  return (
-    <section style={{ height: '100%', boxSizing: 'border-box', overflowY: 'auto', padding: '1rem', color: '#505052', fontSize: '0.82rem', lineHeight: 1.45 }}>
-      {about.split('\n').map((line, index) => {
-        if (line.startsWith('# ')) {
-          return <h2 key={index} style={{ margin: '0 0 0.85rem', fontSize: '0.9rem', color: '#0f172a' }}>{line.slice(2)}</h2>
-        }
-        if (line.startsWith('- ')) {
-          return <div key={index}>• {line.slice(2)}</div>
-        }
-        return line ? <p key={index} style={{ margin: '0 0 0.7rem' }}>{line}</p> : <div key={index} style={{ height: '0.35rem' }} />
-      })}
-      {!about && <span>Loading {appName} controls…</span>}
-    </section>
-  )
-}
+const COLLAPSED_CONTROLS_STRIP = '2.5rem'
 
 export const AppWindow: React.FC<AppWindowProps> = ({
   appKey,
   appName,
   controlsOpen,
   controlsSide,
+  titleBarStyle,
   controlsWidth,
   titleBarHeight,
   transparentControls,
   showControlsBorder,
+  primaryColor,
+  partialChrome,
 }) => {
-  const appRef = React.useRef<App | null>(null)
-  const [runtime, setRuntime] = React.useState<AppRuntime | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-  const [loading, setLoading] = React.useState(true)
+  const appRef = React.useRef<{ pause: () => Promise<unknown> } | null>(null)
+  const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
+  const { loading, error, runtime, steps, failed } = useAppBoot(appKey)
 
   React.useEffect(() => {
-    const app = new App(appKey)
-    appRef.current = app
-    let cancelled = false
-
-    const boot = async () => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const nextRuntime = await app.start()
-        if (!cancelled) {
-          setRuntime(nextRuntime)
-        }
-      } catch (bootError) {
-        if (!cancelled) {
-          setError(bootError instanceof Error ? bootError.message : String(bootError))
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
+    appRef.current = {
+      pause: async () => {
+        const { App } = await import('../apps/App')
+        return new App(appKey).pause()
+      },
     }
 
-    void boot()
-
     return () => {
-      cancelled = true
-      void app.stop().catch(() => {
-        // Ignore stop errors during window teardown.
+      void appRef.current?.pause().catch(() => {
+        // Ignore pause errors during window teardown.
       })
       appRef.current = null
     }
   }, [appKey])
 
-  const collapsedControlsWidth = '2.5rem'
-  const rightControlsWidth = controlsOpen ? controlsWidth : collapsedControlsWidth
-  const controlsOffset = controlsSide === 'left' ? '-100%' : '100%'
-  const appOffset = controlsSide === 'left' ? controlsWidth : '0'
-  const appWidth = controlsSide === 'right'
-    ? controlsOpen ? `calc(100% - ${controlsWidth})` : 'calc(100% - 2.5rem)'
-    : '100%'
-  const appContent = loading ? (
+  React.useEffect(() => {
+    const iframe = iframeRef.current
+    if (!iframe) {
+      return undefined
+    }
+
+    return bindIframeContextMenuBridge(iframe)
+  }, [runtime?.url])
+
+  const isPartialTitle = titleBarStyle === 'partial'
+  const isRightPanel = controlsSide === 'right'
+  const showCollapsedStrip = isPartialTitle && !controlsOpen
+  const activePanelWidth = controlsOpen ? controlsWidth : COLLAPSED_CONTROLS_STRIP
+
+  const partialTitlePadding = isPartialTitle && !partialChrome ? titleBarHeight : '0'
+  const stripBackground = showCollapsedStrip ? primaryColor : transparentControls ? 'transparent' : '#ffffff'
+
+  const useFlexLayout = isPartialTitle
+  let panelWidth = controlsWidth
+  let panelTransform = 'translateX(0)'
+  let panelFlexBasis = activePanelWidth
+  let panelOffScreen = false
+
+  if (isPartialTitle) {
+    panelWidth = activePanelWidth
+    panelFlexBasis = activePanelWidth
+    panelTransform = 'translateX(0)'
+  } else if (isRightPanel) {
+    panelOffScreen = !controlsOpen
+    panelTransform = controlsOpen ? 'translateX(0)' : 'translateX(100%)'
+  } else {
+    panelOffScreen = !controlsOpen
+    panelTransform = controlsOpen ? 'translateX(0)' : 'translateX(-100%)'
+  }
+
+  const appContent = loading && steps.length > 0 ? (
+    <AppBootChecklist appName={appName} steps={steps} failed={failed} />
+  ) : loading ? (
     <div
       style={{
         display: 'grid',
@@ -176,6 +144,7 @@ export const AppWindow: React.FC<AppWindowProps> = ({
     </div>
   ) : (
     <iframe
+      ref={iframeRef}
       title={appName}
       src={runtime.url}
       style={{
@@ -191,45 +160,99 @@ export const AppWindow: React.FC<AppWindowProps> = ({
     />
   )
 
-  return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <div 
-        id="content"
+  const asideStyle: React.CSSProperties = {
+    flex: useFlexLayout ? `0 0 ${panelFlexBasis}` : undefined,
+    width: panelWidth,
+    minWidth: useFlexLayout ? panelFlexBasis : undefined,
+    maxWidth: useFlexLayout ? panelFlexBasis : undefined,
+    display: useFlexLayout ? 'flex' : undefined,
+    flexDirection: useFlexLayout ? 'column' : undefined,
+    alignItems: useFlexLayout ? 'stretch' : undefined,
+    transform: panelTransform,
+    transition: 'width 260ms ease, min-width 260ms ease, max-width 260ms ease, flex-basis 260ms ease, transform 260ms ease',
+    background: controlsOpen
+      ? transparentControls
+        ? 'transparent'
+        : '#ffffff'
+      : stripBackground,
+    backdropFilter: transparentControls && controlsOpen ? 'none' : controlsOpen ? 'blur(18px)' : 'none',
+    borderLeft: showControlsBorder && controlsSide === 'right' ? '1px solid rgba(15, 23, 42, 0.12)' : 'none',
+    borderRight: showControlsBorder && controlsSide === 'left' ? '1px solid rgba(15, 23, 42, 0.12)' : 'none',
+    boxSizing: 'border-box',
+    paddingTop: partialTitlePadding,
+    pointerEvents: controlsOpen || showCollapsedStrip ? 'auto' : 'none',
+    overflow: 'hidden',
+    order: isRightPanel ? 2 : 0,
+  }
+
+  const contentStyle: React.CSSProperties = {
+    flex: useFlexLayout ? '1 1 auto' : undefined,
+    minWidth: useFlexLayout ? 0 : undefined,
+    order: isRightPanel ? 0 : 1,
+  }
+
+  if (useFlexLayout) {
+    return (
+      <div
         style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          left: 0,
-          width: appWidth,
-          transform: controlsOpen ? `translateX(${appOffset})` : 'translateX(0)',
-          transition: 'width 260ms ease, transform 260ms ease',
+          display: 'flex',
+          flexDirection: 'row',
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
         }}
       >
-        {appContent}
+        <aside id="controls" aria-hidden={!controlsOpen && !showCollapsedStrip} style={asideStyle}>
+          {partialChrome}
+          {controlsOpen ? (
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              <AppControlPane appKey={appKey} appName={appName} />
+            </div>
+          ) : null}
+        </aside>
+        <div id="content" style={contentStyle}>
+          {appContent}
+        </div>
       </div>
-      <aside 
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      <aside
         id="controls"
-        aria-hidden={!controlsOpen}
+        aria-hidden={!controlsOpen && !panelOffScreen}
         style={{
           position: 'absolute',
           top: 0,
           bottom: 0,
           [controlsSide]: 0,
-          width: controlsSide === 'right' ? rightControlsWidth : controlsWidth,
-          transform: controlsSide === 'right' || controlsOpen ? 'translateX(0)' : `translateX(${controlsOffset})`,
-          transition: 'width 260ms ease, transform 260ms ease',
-          background: transparentControls ? 'transparent' : '#ffffff',
-          backdropFilter: transparentControls ? 'none' : 'blur(18px)',
-          borderLeft: showControlsBorder && controlsSide === 'right' ? '1px solid rgba(15, 23, 42, 0.12)' : 'none',
-          borderRight: showControlsBorder && controlsSide === 'left' ? '1px solid rgba(15, 23, 42, 0.12)' : 'none',
-          boxSizing: 'border-box',
-          paddingTop: controlsSide === 'right' && controlsOpen ? titleBarHeight : '0',
-          pointerEvents: controlsOpen ? 'auto' : 'none',
-          zIndex: 2,
+          ...asideStyle,
+          zIndex: 3,
         }}
       >
-        {controlsOpen && <AppControls appKey={appKey} appName={appName} />}
+        {controlsOpen ? <AppControlPane appKey={appKey} appName={appName} /> : null}
       </aside>
+      <div
+        id="content"
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: isRightPanel ? '0' : controlsOpen ? controlsWidth : '0',
+          width: isRightPanel
+            ? controlsOpen
+              ? `calc(100% - ${controlsWidth})`
+              : '100%'
+            : controlsOpen
+              ? `calc(100% - ${controlsWidth})`
+              : '100%',
+          transition: 'left 260ms ease, width 260ms ease',
+          zIndex: 1,
+        }}
+      >
+        {appContent}
+      </div>
     </div>
   )
 }

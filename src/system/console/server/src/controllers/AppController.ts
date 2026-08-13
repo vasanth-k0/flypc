@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
 import {
   getAppStatus,
   getAppStoragePath,
+  pauseApp,
   removeAppContainer,
   startApp,
   stopApp,
@@ -30,6 +31,32 @@ export const startAppHandler = async (req: Request, res: Response): Promise<void
   } catch (error) {
     res.status(500).json({
       error: 'Unable to start app',
+      detail: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+export const pauseAppHandler = async (req: Request, res: Response): Promise<void> => {
+  const typedReq = req as AuthenticatedRequest
+  const username = typedReq.authUser?.username
+  const appKey = String(req.params.appKey ?? '')
+
+  if (!username) {
+    res.status(401).json({ error: 'Authentication required' })
+    return
+  }
+
+  if (!appKey) {
+    res.status(400).json({ error: 'App key is required' })
+    return
+  }
+
+  try {
+    const result = await pauseApp(username, appKey)
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({
+      error: 'Unable to pause app',
       detail: error instanceof Error ? error.message : String(error),
     })
   }

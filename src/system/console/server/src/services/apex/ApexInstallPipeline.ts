@@ -18,6 +18,8 @@ import { ensureUserAppStorage } from '../storage/TenantStorage.js'
 import { provisionKubernetesWorkload } from '../AppControlsService.js'
 import { assignUserPorts, pullContainerImages } from './PortAssignmentService.js'
 import { defaultKubeConfig } from './defaultKubeConfig.js'
+import { resolveUserPorts } from '../../lib/PortResolver.js'
+import { registerAppGatewayRouteAndSync } from '../AppRouteService.js'
 
 const toCatalogDefinition = (entry: ApexCatalogEntry): AppCatalogDefinition => ({
   name: entry.manifest.name,
@@ -74,6 +76,12 @@ export const runApexInstallPipeline = async (
   saveAppsCatalog(nextCatalog)
 
   await provisionKubernetesWorkload(appKey, username, installedService)
+
+  const { runtime } = resolveUserPorts(installedService, username)
+  const primaryPort = runtime.http ?? Object.values(runtime)[0]
+  if (typeof primaryPort === 'number') {
+    registerAppGatewayRouteAndSync(appKey, username, primaryPort)
+  }
 }
 
 export const runApexCleanupForUser = async (username: string, appKey: string): Promise<void> => {

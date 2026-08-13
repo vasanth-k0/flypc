@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import csrf from 'csurf';
 import { expressjwt } from 'express-jwt';
 import config from './lib/Config.js';
+import { getFlypcRoot } from './lib/PathResolver.js';
 import appsRouter from './routers/AppsRouter.js';
 import filesRouter from './routers/FilesRouter.js';
 import { createKonnectProxyRouter } from './routers/KonnectProxyRouter.js';
@@ -18,12 +19,17 @@ const appConfig = config.getAll();
 const port = appConfig.port || process.env.PORT || 3000;
 const jwtSecret = process.env.JWT_SECRET || 'flypc-jwt-secret';
 const sessionSecret = process.env.SESSION_SECRET || 'flypc-session-secret';
+const flypcRoot = getFlypcRoot();
 const frontendDistPath = process.env.FLYPC_FE_DIST
   ? path.resolve(process.env.FLYPC_FE_DIST)
-  : path.resolve(process.cwd(), '../../../../dist/fe');
+  : path.resolve(flypcRoot, 'dist/fe');
 const frontendPublicPath = process.env.FLYPC_FE_PUBLIC
   ? path.resolve(process.env.FLYPC_FE_PUBLIC)
-  : path.resolve(process.cwd(), '../client/web/flypc/public');
+  : path.resolve(flypcRoot, 'src/system/console/client/web/flypc/public');
+const wallpaperResourcesPaths = [
+  path.join(frontendPublicPath, 'resources'),
+  path.join(frontendDistPath, 'resources'),
+];
 const indexFilePath = path.join(frontendDistPath, 'index.html');
 const currentFile = fileURLToPath(import.meta.url);
 const shouldEnableCsrf = process.env.ENABLE_CSRF === 'true';
@@ -100,8 +106,9 @@ app.use(appsRouter);
 app.use('/konnect', createKonnectProxyRouter());
 app.use('/kube', createKubeProxyRouter());
 app.use(filesRouter);
-app.use('/resources', express.static(path.join(frontendDistPath, 'resources')));
-app.use('/resources', express.static(path.join(frontendPublicPath, 'resources')));
+for (const resourcesPath of wallpaperResourcesPaths) {
+  app.use('/resources', express.static(resourcesPath));
+}
 app.use(express.static(frontendDistPath));
 
 app.get('/auth/csrf-token', (req, res) => {
@@ -144,6 +151,12 @@ const bootstrap = async (): Promise<void> => {
 
   app.listen(port, () => {
     console.log(`[server]: Server is running at http://localhost:${port}`);
+
+    void import('./services/AppWarmStartService.js')
+      .then(({ runKubernetesWarmStartOnBoot }) => runKubernetesWarmStartOnBoot())
+      .catch((error) => {
+        console.error('[warm-start]: Boot reconciliation failed', error);
+      });
   });
 };
 

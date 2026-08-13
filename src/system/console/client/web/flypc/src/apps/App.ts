@@ -1,6 +1,6 @@
 import { apiFetch } from '../services/apiClient'
 
-export type AppRuntimeStatus = 'running' | 'stopped' | 'missing' | 'not-containerized'
+export type AppRuntimeStatus = 'running' | 'stopped' | 'paused' | 'missing' | 'not-containerized'
 
 export type AppRuntime = {
   ok: boolean
@@ -27,6 +27,15 @@ export class App {
 
   async start(): Promise<AppRuntime> {
     const runtime = await apiFetch<AppRuntime>(`/apps/${this.key}/start`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    this.runtime = runtime
+    return runtime
+  }
+
+  async pause(): Promise<AppRuntime> {
+    const runtime = await apiFetch<AppRuntime>(`/apps/${this.key}/pause`, {
       method: 'POST',
       body: JSON.stringify({}),
     })

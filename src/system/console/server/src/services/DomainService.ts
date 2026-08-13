@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { readBlueprint, writeBlueprint } from '../controllers/TenantStorage.js'
+import { readBlueprint, writeBlueprint } from './storage/TenantStorage.js'
+import { loadAppGatewayRoutes, renderAppGatewayCaddyBlocks } from './AppRouteService.js'
 
 export type RHostNodeRole = 'hub' | 'primary' | 'branch' | 'standalone'
 export type RHostSslMode = 'internal' | 'letsencrypt' | 'manual'
@@ -119,20 +120,66 @@ export const getDomainConfig = (): RHostDomainConfig => {
 export const renderCaddyfile = (config: RHostDomainConfig): string => {
   const upstream = process.env.RHOST_UPSTREAM ?? 'rhost:3000'
   const host = config.publicHost
+  const appRoutesBlock = renderAppGatewayCaddyBlocks(loadAppGatewayRoutes())
+
+  const gatewayRoutes = `  route {
+    handle /gateway/* {
+      root * /srv/boot
+      uri strip_prefix /gateway
+      try_files {path} /index.html
+      file_server
+    }
+
+    handle /gateway {
+      root * /srv/boot
+      rewrite * /index.html
+      file_server
+    }
+
+    handle /boot* {
+      redir /gateway permanent
+    }
+
+${appRoutesBlock ? `${appRoutesBlock}\n\n` : ''}    handle /console* {
+      uri strip_prefix /console
+      reverse_proxy ${upstream}
+    }
+
+    handle {
+      reverse_proxy ${upstream} {
+        health_uri /system/health
+        health_interval 10s
+        health_timeout 5s
+        fail_duration 15s
+      }
+    }
+  }
+
+  handle_errors {
+    @upstream_down expression \`{http.error.status_code} == 502 || {http.error.status_code} == 503\`
+    handle @upstream_down {
+      @not_console not path /console /console/*
+      handle @not_console {
+        rewrite * /index.html
+        root * /srv/boot
+        file_server
+      }
+    }
+  }`
 
   if (!config.httpsEnabled) {
-    return `# RHost HTTP-only profile\n${host} {\n  reverse_proxy ${upstream}\n}\n`
+    return `# RHost gateway HTTP profile\n${host} {\n${gatewayRoutes}\n}\n`
   }
 
   if (config.sslMode === 'internal' || host === 'localhost') {
-    return `# RHost local HTTPS (internal CA)\n${host} {\n  tls internal\n  reverse_proxy ${upstream}\n}\n`
+    return `# RHost gateway local HTTPS\n${host} {\n  tls internal\n${gatewayRoutes}\n}\n`
   }
 
   if (config.sslMode === 'letsencrypt') {
-    return `# RHost Let's Encrypt profile\n${host} {\n  email ${config.adminEmail}\n  reverse_proxy ${upstream}\n}\n`
+    return `# RHost gateway Let's Encrypt\n${host} {\n  email ${config.adminEmail}\n${gatewayRoutes}\n}\n`
   }
 
-  return `# RHost manual TLS profile\n${host} {\n  reverse_proxy ${upstream}\n}\n`
+  return `# RHost gateway manual TLS\n${host} {\n${gatewayRoutes}\n}\n`
 }
 
 export const writeCaddyfile = (config: RHostDomainConfig): string => {

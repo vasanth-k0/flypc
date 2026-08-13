@@ -74,19 +74,73 @@ export class Container {
     return args
   }
 
-  async start(): Promise<string> {
+  async start(options?: { preserveStopped?: boolean }): Promise<string> {
     const status = await this.getStatus()
+
     if (status === 'running') {
       const inspect = await this.inspect()
       return inspect.id
     }
 
+    if (status === 'paused') {
+      await this.unpause()
+      const inspect = await this.inspect()
+      return inspect.id
+    }
+
     if (status === 'stopped') {
+      if (options?.preserveStopped) {
+        await this.run(['start', this.name])
+        const inspect = await this.inspect()
+        return inspect.id
+      }
+
       await this.remove()
     }
 
     const containerId = await this.run(this.buildRunArgs())
     return containerId
+  }
+
+  /** Create or resume container, then pause (warm-start for on-demand apps). */
+  async warmStartAndPause(): Promise<string> {
+    const containerId = await this.start({ preserveStopped: true })
+    const status = await this.getStatus()
+    if (status === 'running') {
+      await this.pause()
+    }
+
+    return containerId
+  }
+
+  async pause(): Promise<void> {
+    if ((await this.getStatus()) !== 'running') {
+      return
+    }
+
+    try {
+      await this.run(['pause', this.name])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.includes('No such container')) {
+        throw error
+      }
+    }
+  }
+
+  async unpause(): Promise<void> {
+    if ((await this.getStatus()) !== 'paused') {
+      return
+    }
+
+    try {
+      await this.run(['unpause', this.name])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.includes('No such container')) {
+        throw error
+      }
+    }
   }
 
   async stop(): Promise<void> {
@@ -135,7 +189,13 @@ export class Container {
 
   async getStatus(): Promise<AppRuntimeStatus> {
     try {
-      const runningRaw = await this.run(['inspect', '-f', '{{.State.Running}}', this.name])
+      const raw = await this.run(['inspect', '-f', '{{.State.Running}}|{{.State.Paused}}', this.name])
+      const [runningRaw = 'false', pausedRaw = 'false'] = raw.split('|')
+
+      if (pausedRaw === 'true') {
+        return 'paused'
+      }
+
       return runningRaw === 'true' ? 'running' : 'stopped'
     } catch {
       return 'missing'

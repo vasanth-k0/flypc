@@ -26,10 +26,52 @@ export type ServicePortMap = Record<string, number | Record<string, number> | un
   users?: Record<string, number>
 }
 
+export type AppRuntime = 'docker' | 'kubernetes'
+
+export type AppVolumeType = 'persistent' | 'emptyDir' | 'hostPath'
+
+export type AppVolume = {
+  name: string
+  type: AppVolumeType
+  mountPath: string
+  size?: string
+  storageClass?: string
+  nodeSubdomain?: string
+  hostPath?: string
+}
+
+export type KubePlacement = {
+  subdomains?: string[]
+  tier?: 'entry' | 'worker' | 'any'
+  nodeSelector?: Record<string, string>
+}
+
+export type KubeResources = {
+  requests?: { cpu?: string; memory?: string }
+  limits?: { cpu?: string; memory?: string }
+}
+
+export type KubeIngress = {
+  enabled?: boolean
+  path?: string
+  host?: string
+}
+
+export type KubeConfig = {
+  replicas?: number
+  placement?: KubePlacement
+  resources?: KubeResources
+  ingress?: KubeIngress
+  strategy?: 'RollingUpdate' | 'Recreate'
+}
+
 export type ServiceDefinition = {
   type: 'run-once' | 'daemon'
   readonly?: boolean
+  /** When true (or runtime kubernetes), workload is managed by rhost-kube/k3s. */
   autorun?: boolean
+  /** Per-app container engine override for on-demand docker workloads. */
+  containerProgram?: ContainerProgram
   dir?: string
   image?: string | false
   ports?: ServicePortMap
@@ -41,6 +83,9 @@ export type ServiceDefinition = {
   tty?: {
     command?: string
   }
+  runtime?: AppRuntime
+  volumes?: AppVolume[]
+  kube?: KubeConfig
 }
 
 export type ContainerVolumeMount = {
@@ -49,7 +94,7 @@ export type ContainerVolumeMount = {
   readonly?: boolean
 }
 
-export type AppRuntimeStatus = 'running' | 'stopped' | 'missing' | 'not-containerized'
+export type AppRuntimeStatus = 'running' | 'stopped' | 'paused' | 'missing' | 'not-containerized'
 
 export type AppStartResult = {
   ok: boolean
