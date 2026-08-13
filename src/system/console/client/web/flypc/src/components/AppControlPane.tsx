@@ -52,7 +52,9 @@ type ControlMeta = {
   appType: 'run-once' | 'daemon'
   runtime: 'docker' | 'kubernetes'
   hasKubeConfig: boolean
-  managementMode: 'kubernetes' | 'docker' | 'static'
+  managementMode: 'kubernetes' | 'session-container' | 'static'
+  lifecycleCategory?: string
+  lifecycleLabel?: string
 }
 
 type DockerRuntimeStatus = {
@@ -135,13 +137,13 @@ export const AppControlPane: React.FC<AppControlPaneProps> = ({ appKey, appName 
       }
       if (statusRes.ok) {
         const payload = (await statusRes.json()) as {
-          mode: 'kubernetes' | 'docker' | 'static'
+          mode: 'kubernetes' | 'session-container' | 'static'
           status: WorkloadStatus | DockerRuntimeStatus | null
         }
         if (payload.mode === 'kubernetes' && payload.status) {
           setStatus(payload.status as WorkloadStatus)
           setDockerStatus(null)
-        } else if (payload.mode === 'docker' && payload.status) {
+        } else if (payload.mode === 'session-container' && payload.status) {
           setDockerStatus(payload.status as DockerRuntimeStatus)
           setStatus(null)
         }
@@ -256,6 +258,19 @@ export const AppControlPane: React.FC<AppControlPaneProps> = ({ appKey, appName 
   }
 
   const isKubernetes = meta.managementMode === 'kubernetes'
+  const isSessionContainer = meta.managementMode === 'session-container'
+
+  const formatContainerState = (state?: string): string => {
+    if (!state) return 'unknown'
+    if (state === 'paused') return 'paused (window closed)'
+    return state
+  }
+
+  const containerStateClass = (state?: string): string => {
+    if (state === 'running') return statusClass('Running')
+    if (state === 'paused') return 'control-pane__status-pill control-pane__status-pill--pending'
+    return statusClass('Pending')
+  }
 
   return (
     <div className="control-pane">
@@ -263,9 +278,14 @@ export const AppControlPane: React.FC<AppControlPaneProps> = ({ appKey, appName 
         <div className="control-pane__eyebrow">Application Control Pane</div>
         <h2 className="control-pane__title">{appName}</h2>
         <p className="control-pane__subtitle">
+          {meta.lifecycleLabel ? (
+            <span className="control-pane__lifecycle-tag">{meta.lifecycleLabel}</span>
+          ) : null}
           {isKubernetes
             ? 'Manage runtime, volumes, placement, and cluster rollout for this service.'
-            : 'View service configuration and container status.'}
+            : isSessionContainer
+              ? 'Session container — starts when you open the app and pauses when you close the window.'
+              : 'View service configuration and container status.'}
         </p>
       </header>
 
@@ -327,9 +347,9 @@ export const AppControlPane: React.FC<AppControlPaneProps> = ({ appKey, appName 
                         )}
                       </div>
                     </>
-                  ) : (
+                  ) : isSessionContainer ? (
                     <div className="control-pane__section">
-                      <h3 className="control-pane__section-title">Docker status</h3>
+                      <h3 className="control-pane__section-title">Session container</h3>
                       <div className="control-pane__metric-grid">
                         <div className="control-pane__metric">
                           <span className="control-pane__metric-label">Container</span>
@@ -337,9 +357,13 @@ export const AppControlPane: React.FC<AppControlPaneProps> = ({ appKey, appName 
                         </div>
                         <div className="control-pane__metric">
                           <span className="control-pane__metric-label">State</span>
-                          <span className={statusClass(dockerStatus?.status === 'running' ? 'Running' : 'Pending')}>
-                            {dockerStatus?.status ?? 'unknown'}
+                          <span className={containerStateClass(dockerStatus?.status)}>
+                            {formatContainerState(dockerStatus?.status)}
                           </span>
+                        </div>
+                        <div className="control-pane__metric">
+                          <span className="control-pane__metric-label">Lifecycle</span>
+                          <span className="control-pane__metric-value">pause on close</span>
                         </div>
                         <div className="control-pane__metric">
                           <span className="control-pane__metric-label">Proxy path</span>
@@ -357,7 +381,7 @@ export const AppControlPane: React.FC<AppControlPaneProps> = ({ appKey, appName 
                         </dl>
                       ) : null}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ),
             },

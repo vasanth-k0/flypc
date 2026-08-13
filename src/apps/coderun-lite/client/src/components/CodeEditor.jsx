@@ -34,17 +34,31 @@ const ScriptPanel = ({defaults, lang})=>{
   const runCode = async ()=>{
 
       setOutput('Script getting executed. Please wait ...');
-      const outp = await fetch(
-                                '/apps/coderun-lite/run/' + lang, { 
-                                  method: 'POST', 
-                                  credentials: 'include',
-                                  headers: {
-                                    'Content-Type': 'application/json; charset=UTF-8'
-                                  }, 
-                                  body: JSON.stringify({script: code.trim()})
-                                });
-        const res = await(outp.text());
-        setOutput(` ${res}`);
+      const headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+      };
+      const token = window.localStorage.getItem('flypc-auth-token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      try {
+        const outp = await fetch(
+                                  '/apps/coderun-lite/run/' + lang, { 
+                                    method: 'POST', 
+                                    credentials: 'include',
+                                    headers,
+                                    body: JSON.stringify({script: code.trim()})
+                                  });
+          const res = await outp.text();
+          if (!outp.ok) {
+            setOutput(`Error (${outp.status}): ${res}`);
+            return;
+          }
+          setOutput(` ${res}`);
+      } catch (error) {
+        setOutput(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      }
   };
   const colorPick = '#1677ff';
 

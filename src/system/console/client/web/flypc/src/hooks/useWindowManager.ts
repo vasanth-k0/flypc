@@ -18,7 +18,7 @@ export const useWindowManager = ({
   const [activeWindowId, setActiveWindowId] = React.useState<WindowId>('apps')
   const [appsListReturnWindowId, setAppsListReturnWindowId] = React.useState<WindowId | null>(null)
   const [openApps, setOpenApps] = React.useState<AppEntry[]>([])
-  const [appSessionVersion, setAppSessionVersion] = React.useState(0)
+  const [appSessionVersions, setAppSessionVersions] = React.useState<Record<string, number>>({})
   const [openAppControls, setOpenAppControls] = React.useState<Record<string, boolean>>({})
   const [isMaximized, setIsMaximized] = React.useState(false)
   const dashboardMenuHideTimerRef = React.useRef<number | null>(null)
@@ -32,6 +32,12 @@ export const useWindowManager = ({
   }, [])
 
   const handleCloseAppWindow = React.useCallback((appKey: string) => {
+    void import('../apps/App')
+      .then(({ App }) => new App(appKey).pause())
+      .catch(() => {
+        // Pause is best-effort; unmount hook also attempts pause for session containers.
+      })
+
     setOpenApps((current) => current.filter((app) => app.key !== appKey))
     setAppsListReturnWindowId((current) => (current === `app:${appKey}` ? null : current))
     setActiveWindowId('apps')
@@ -93,15 +99,27 @@ export const useWindowManager = ({
     setActiveWindowId(`app:${app.key}`)
   }, [])
 
-  const refreshAppSessions = React.useCallback(() => {
-    setAppSessionVersion((current) => current + 1)
-    setActiveWindowId('apps')
+  const refreshAppSession = React.useCallback((appKey: string) => {
+    setAppSessionVersions((current) => ({
+      ...current,
+      [appKey]: (current[appKey] ?? 0) + 1,
+    }))
   }, [])
+
+  const refreshAllAppSessions = React.useCallback(() => {
+    setAppSessionVersions((current) => {
+      const next = { ...current }
+      for (const app of openApps) {
+        next[app.key] = (next[app.key] ?? 0) + 1
+      }
+      return next
+    })
+  }, [openApps])
 
   return {
     activeWindowId,
     openApps,
-    appSessionVersion,
+    appSessionVersions,
     openAppControls,
     setOpenAppControls,
     isMaximized,
@@ -111,7 +129,8 @@ export const useWindowManager = ({
     handleMaximizeWindow,
     handleWindowChange,
     handleAppOpen,
-    refreshAppSessions,
+    refreshAppSession,
+    refreshAllAppSessions,
     setActiveWindowId,
   }
 }

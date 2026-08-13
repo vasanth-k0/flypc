@@ -61,9 +61,9 @@ export const getControlsStatusHandler = async (req: Request, res: Response): Pro
     return
   }
 
-  if (meta.managementMode === 'docker') {
+  if (meta.managementMode === 'session-container') {
     const docker = await getDockerRuntimeStatus(username, appKey)
-    res.json({ mode: 'docker', status: docker })
+    res.json({ mode: 'session-container', status: docker })
     return
   }
 

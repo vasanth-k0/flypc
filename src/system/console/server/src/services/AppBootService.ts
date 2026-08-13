@@ -7,6 +7,7 @@ import { resolveUserPorts } from '../lib/PortResolver.js'
 import { loadServiceDefinition } from './ServiceRegistry.js'
 import { getAppStatus } from './AppService.js'
 import { isKubernetesManaged, isStaticViewApp, resolveServiceContainerProgram } from './AppLifecyclePolicy.js'
+import { resolveAppUpstreamHost } from '../lib/AppUpstream.js'
 import { getContainerProgram } from '../lib/SystemSettings.js'
 
 const execFileAsync = promisify(execFile)
@@ -206,9 +207,13 @@ export const getBootStatus = async (username: string, appKey: string): Promise<B
   }
 
   steps[1]!.state = 'done'
+  if (containerStatus.status === 'paused') {
+    steps[1]!.detail = 'Paused — resuming'
+  }
   steps[2]!.state = 'active'
 
-  const tcpOk = await probeTcp('127.0.0.1', port)
+  const upstreamHost = resolveAppUpstreamHost()
+  const tcpOk = await probeTcp(upstreamHost, port)
   if (!tcpOk) {
     return {
       appKey,
@@ -224,7 +229,7 @@ export const getBootStatus = async (username: string, appKey: string): Promise<B
   steps[2]!.state = 'done'
   steps[3]!.state = 'active'
 
-  const httpCheck = await probeHttp('127.0.0.1', port)
+  const httpCheck = await probeHttp(upstreamHost, port)
   if (!httpCheck.ok) {
     return {
       appKey,

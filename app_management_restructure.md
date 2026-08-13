@@ -12,8 +12,8 @@ Apps are routed by `service.json` into two management paths:
 | Path | When | Engine | Boot behaviour | User opens app | User closes window |
 |------|------|--------|----------------|----------------|-------------------|
 | **Kubernetes** | `type: daemon` + (`autorun: true` **or** `runtime: kubernetes`) | rhost-kube / k3s | Reconcile on server boot (round-robin) | Reconcile / ensure running | No stop — workload stays in cluster |
-| **On-demand container** | `type: daemon` + image, not k8s-managed | `containerProgram` in service.json or system default (`docker` / `podman`) | Nothing on boot | Start / unpause container | **Pause** container (not stop) |
-| **Run-once** | `type: run-once` | None (static view) | Nothing | Serve view URL | Nothing |
+| **Session container** | `type: daemon` + image, not k8s-managed | `containerProgram` or system default | Nothing on boot | Start / **unpause** container | **Pause** container (not stop) |
+| **Static view** | `type: run-once` | None (embedded view) | Nothing | Serve view URL | Nothing |
 | **TTY daemon** | `image: false` + `ports.tty` | ttyd session | Nothing | Start tty session | Stop session |
 | **Stack** | konnect, rhost-kube | Compose | Compose-managed | Proxy URL | N/A |
 
@@ -33,8 +33,8 @@ Apps are routed by `service.json` into two management paths:
 **Classification** (`AppLifecyclePolicy.ts`):
 
 - `isKubernetesManaged` → `daemon` + image + (`autorun === true` OR `runtime === 'kubernetes'`)
-- `isOnDemandContainer` → `daemon` + image + NOT k8s-managed
-- `run-once` → static app, no container lifecycle
+- `isSessionContainer` → `daemon` + image + NOT k8s-managed (OnlyOffice, etc.)
+- `run-once` → static app (CodeRun Lite, Notepad), no container lifecycle
 
 ---
 
@@ -70,7 +70,7 @@ User closes window
   → (no pause/stop — cluster keeps running)
 ```
 
-### On-demand docker/podman
+### Session container (OnlyOffice, etc.)
 
 ```
 User opens app
@@ -79,12 +79,15 @@ User opens app
   → if stopped → docker start (preserve container)
   → if missing → docker run -d
 
-User closes window
-  → POST /apps/:key/pause
-  → docker pause (container preserved)
+User closes window (X button)
+  → POST /apps/:key/pause (explicit + unmount hook)
+  → docker pause (container preserved, memory frozen)
+
+User switches to another app (without closing)
+  → container keeps running (background tab behaviour)
 ```
 
-### Run-once
+### Static view (CodeRun Lite, Notepad)
 
 ```
 User opens app → view URL only, no container

@@ -6,8 +6,24 @@ export type AppManagementMode =
   | 'stack'
   | 'tty'
   | 'kubernetes'
+  /** User-session container: start on open, docker pause on close, unpause on reopen. */
+  | 'session-container'
+  /** @deprecated Use session-container */
   | 'on-demand-container'
   | 'not-containerized'
+
+export const LIFECYCLE_CATEGORY_LABELS: Record<AppManagementMode, string> = {
+  'run-once': 'Static view',
+  stack: 'Stack service',
+  tty: 'Terminal session',
+  kubernetes: 'Cluster daemon',
+  'session-container': 'Session container',
+  'on-demand-container': 'Session container',
+  'not-containerized': 'Not containerized',
+}
+
+export const getLifecycleCategoryLabel = (mode: AppManagementMode): string =>
+  LIFECYCLE_CATEGORY_LABELS[mode] ?? mode
 
 export const isTtyDaemon = (service: ServiceDefinition): boolean =>
   service.type === 'daemon'
@@ -24,12 +40,15 @@ export const isKubernetesManaged = (service: ServiceDefinition): boolean =>
   && Boolean(service.image)
   && (service.runtime === 'kubernetes' || service.autorun === true)
 
-/** Daemon apps started on user demand via docker/podman (not k3s). */
-export const isOnDemandContainer = (service: ServiceDefinition): boolean =>
+/** Session container apps: daemon + image, docker/podman, pause/resume per user window. */
+export const isSessionContainer = (service: ServiceDefinition): boolean =>
   service.type === 'daemon'
   && typeof service.image === 'string'
   && Boolean(service.image)
   && !isKubernetesManaged(service)
+
+/** @deprecated Use isSessionContainer */
+export const isOnDemandContainer = isSessionContainer
 
 export const resolveAppManagementMode = (
   service: ServiceDefinition,
@@ -51,8 +70,8 @@ export const resolveAppManagementMode = (
     return 'kubernetes'
   }
 
-  if (isOnDemandContainer(service)) {
-    return 'on-demand-container'
+  if (isSessionContainer(service)) {
+    return 'session-container'
   }
 
   return 'not-containerized'

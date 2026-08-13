@@ -1,6 +1,6 @@
 import type { ServiceDefinition } from '../types/ServiceDefinition.js'
 import { resolveUserPorts } from '../lib/PortResolver.js'
-import { isKubernetesManaged, resolveServiceContainerProgram } from '../services/AppLifecyclePolicy.js'
+import { getLifecycleCategoryLabel, isKubernetesManaged, isSessionContainer, resolveAppManagementMode, resolveServiceContainerProgram } from '../services/AppLifecyclePolicy.js'
 import { getContainerProgram } from '../lib/SystemSettings.js'
 
 export type ServiceConfigRow = {
@@ -18,8 +18,10 @@ export const buildServiceConfigSections = (
   username: string,
 ): ServiceConfigSection[] => {
   const sections: ServiceConfigSection[] = []
+  const lifecycleCategory = resolveAppManagementMode(service, false)
   const general: ServiceConfigRow[] = [
     { label: 'Type', value: service.type },
+    { label: 'Lifecycle', value: getLifecycleCategoryLabel(lifecycleCategory) },
     { label: 'Runtime', value: isKubernetesManaged(service) ? 'kubernetes' : service.runtime ?? 'docker' },
     { label: 'Autorun', value: service.autorun ? 'yes' : 'no' },
   ]
@@ -28,6 +30,10 @@ export const buildServiceConfigSections = (
     general.push({ label: 'Image', value: service.image })
   } else if (service.image === false) {
     general.push({ label: 'Image', value: 'none (TTY/session)' })
+  }
+
+  if (isSessionContainer(service)) {
+    general.push({ label: 'Window close', value: 'pause container (resume on reopen)' })
   }
 
   if (service.dir) {

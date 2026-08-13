@@ -38,6 +38,7 @@ export const useAppBoot = (appKey: string): UseAppBootResult => {
     const app = new App(appKey)
     let cancelled = false
     let pollTimer: number | undefined
+    let skipPauseOnCleanup = false
 
     const clearPoll = (): void => {
       if (pollTimer !== undefined) {
@@ -68,6 +69,7 @@ export const useAppBoot = (appKey: string): UseAppBootResult => {
         const bootMeta = (await initialStatus.json()) as BootStatusResponse
 
         if (!bootMeta.requiresChecklist) {
+          skipPauseOnCleanup = true
           setRuntime({
             ...started,
             url: bootMeta.proxyUrl ?? started.url ?? `/apps/${appKey}/view/`,
@@ -140,9 +142,11 @@ export const useAppBoot = (appKey: string): UseAppBootResult => {
     return () => {
       cancelled = true
       clearPoll()
-      void app.pause().catch(() => {
-        // Ignore pause errors during window teardown.
-      })
+      if (!skipPauseOnCleanup) {
+        void app.pause().catch(() => {
+          // Ignore pause errors during window teardown.
+        })
+      }
     }
   }, [appKey])
 

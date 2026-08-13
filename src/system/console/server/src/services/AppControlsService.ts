@@ -3,7 +3,13 @@ import {
   readInstalledServiceDefinition,
   writeInstalledServiceDefinition,
 } from '../lib/ApexCatalog.js'
-import { isKubernetesManaged, isStaticViewApp } from './AppLifecyclePolicy.js'
+import {
+  getLifecycleCategoryLabel,
+  isKubernetesManaged,
+  isStaticViewApp,
+  isSessionContainer,
+  resolveAppManagementMode,
+} from './AppLifecyclePolicy.js'
 import { buildServiceConfigSections } from '../lib/serviceConfigView.js'
 
 export type ControlPaneMeta = {
@@ -11,7 +17,9 @@ export type ControlPaneMeta = {
   appType: ServiceDefinition['type']
   runtime: AppRuntime
   hasKubeConfig: boolean
-  managementMode: 'kubernetes' | 'docker' | 'static'
+  managementMode: 'kubernetes' | 'session-container' | 'static'
+  lifecycleCategory: ReturnType<typeof resolveAppManagementMode>
+  lifecycleLabel: string
 }
 
 export type ControlPaneConfig = {
@@ -60,15 +68,18 @@ export const getControlPaneMeta = (appKey: string): ControlPaneMeta => {
       runtime: 'docker',
       hasKubeConfig: false,
       managementMode: 'static',
+      lifecycleCategory: 'run-once',
+      lifecycleLabel: getLifecycleCategoryLabel('run-once'),
     }
   }
 
+  const lifecycleCategory = resolveAppManagementMode(service, false)
   const managementMode = isStaticViewApp(service)
     ? 'static'
     : isKubernetesManaged(service)
       ? 'kubernetes'
-      : service.type === 'daemon'
-        ? 'docker'
+      : isSessionContainer(service)
+        ? 'session-container'
         : 'static'
 
   return {
@@ -77,6 +88,8 @@ export const getControlPaneMeta = (appKey: string): ControlPaneMeta => {
     runtime: isKubernetesManaged(service) ? 'kubernetes' : service.runtime ?? 'docker',
     hasKubeConfig: Boolean(service.kube || service.volumes?.length),
     managementMode,
+    lifecycleCategory,
+    lifecycleLabel: getLifecycleCategoryLabel(lifecycleCategory),
   }
 }
 

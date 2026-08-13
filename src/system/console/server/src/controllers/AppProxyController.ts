@@ -3,6 +3,7 @@ import http from 'node:http'
 import type { AuthenticatedRequest } from '../middleware/auth.middleware.js'
 import { resolveUserPorts } from '../lib/PortResolver.js'
 import { loadServiceDefinition } from '../services/ServiceRegistry.js'
+import { resolveAppUpstreamHost } from '../lib/AppUpstream.js'
 import { resolveAppGatewayPort } from '../services/AppRouteService.js'
 
 const resolveProxyTarget = (username: string, appKey: string): number | null => {
@@ -46,15 +47,16 @@ export const appProxyHandler = (req: Request, res: Response): void => {
     ? req.originalUrl.slice(mountPrefix.length) || '/'
     : req.url || '/'
 
+  const upstreamHost = resolveAppUpstreamHost()
   const upstream = http.request(
     {
-      hostname: '127.0.0.1',
+      hostname: upstreamHost,
       port,
       method: req.method,
       path: upstreamPath,
       headers: {
         ...req.headers,
-        host: `127.0.0.1:${port}`,
+        host: `${upstreamHost}:${port}`,
       },
     },
     (upstreamRes) => {

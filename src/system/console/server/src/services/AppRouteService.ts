@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { resolveAppUpstreamHost } from '../lib/AppUpstream.js'
 import { getDomainConfig, writeCaddyfile } from './DomainService.js'
 
 const getDataRoot = (): string =>
@@ -78,7 +79,7 @@ export const buildAppProxyPath = (appKey: string): string => `/apps/${appKey}/pr
 export const buildAppGatewayPath = (appKey: string): string => `/${appKey}/`
 
 export const renderAppGatewayCaddyBlocks = (routes: AppGatewayRoute[]): string => {
-  const upstreamHost = process.env.APP_UPSTREAM_HOST ?? 'host.docker.internal'
+  const upstreamHost = resolveAppUpstreamHost()
   const uniqueByApp = new Map<string, AppGatewayRoute>()
 
   for (const route of routes) {
