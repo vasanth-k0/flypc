@@ -1,0 +1,50 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/nextcloud",
+    "image": "nextcloud:latest",
+    "storageMount": "/var/www/html",
+    "mounts": [
+        "data",
+        "config",
+        "workspace"
+    ],
+    "env": {
+        "NEXTCLOUD_ADMIN_USER": "admin",
+        "OVERWRITEWEBROOT": "/nextcloud",
+        "OVERWRITEPROTOCOL": "https",
+        "OVERWRITEHOST": "localhost",
+        "OVERWRITECLIURL": "https://localhost/nextcloud"
+    },
+    "ports": {
+        "http": 80,
+        "users": {
+            "admin": 7181
+        }
+    },
+    "runtime": "docker",
+    "volumes": [],
+    "kube": {
+        "replicas": 1,
+        "placement": {
+            "tier": "entry",
+            "subdomains": []
+        },
+        "resources": {
+            "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+            },
+            "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+            }
+        },
+        "ingress": {
+            "enabled": false,
+            "path": "/nextcloud"
+        },
+        "strategy": "RollingUpdate"
+    }
+}
