@@ -1,0 +1,9 @@
+{
+    "name": "Jellyfin",
+    "icon": "PlayCircleFilled",
+    "description": "Free self-hosted media server for movies, TV, music, and live TV.",
+    "portDefaults": {
+        "admin": 7187,
+        "guest": 7191
+    }
+}

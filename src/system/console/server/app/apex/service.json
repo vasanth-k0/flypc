@@ -1,0 +1,5 @@
+{
+    "type": "run-once",
+    "readonly": true,
+    "dir": "src/apps/apex"
+}

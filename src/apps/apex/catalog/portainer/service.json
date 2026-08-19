@@ -1,0 +1,15 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/portainer",
+    "image": "portainer/portainer-ce:latest",
+    "storageMount": "/data",
+    "mounts": [
+        "data",
+        "config"
+    ],
+    "ports": {
+        "http": 9000
+    }
+}

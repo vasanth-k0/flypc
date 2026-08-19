@@ -1,0 +1,9 @@
+{
+    "name": "Plex",
+    "icon": "PlaySquareFilled",
+    "description": "Popular media server for organizing and streaming your personal media library.",
+    "portDefaults": {
+        "admin": 7188,
+        "guest": 7192
+    }
+}

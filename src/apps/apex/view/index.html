@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Apex Application Exchange</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #f4f7fb;
+        color: #0f172a;
+      }
+
+      .apex-root {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        min-height: 100vh;
+      }
+
+      .apex-sidebar {
+        background: #ffffff;
+        border-right: 1px solid #e2e8f0;
+        padding: 1rem;
+        overflow-y: auto;
+      }
+
+      .apex-sidebar h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.15rem;
+      }
+
+      .apex-sidebar p {
+        margin: 0 0 1rem;
+        color: #64748b;
+        font-size: 0.85rem;
+        line-height: 1.45;
+      }
+
+      .apex-list {
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .apex-list button {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        border-radius: 12px;
+        padding: 0.75rem;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .apex-list button.active {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+
+      .apex-list .name {
+        display: block;
+        font-weight: 600;
+        font-size: 0.92rem;
+      }
+
+      .apex-list .status {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+
+      .apex-main {
+        padding: 1.25rem;
+      }
+
+      .apex-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 1.25rem;
+        max-width: 760px;
+      }
+
+      .apex-card h2 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+      }
+
+      .apex-meta {
+        color: #64748b;
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+      }
+
+      .apex-description,
+      .apex-about {
+        line-height: 1.55;
+        color: #334155;
+        font-size: 0.92rem;
+        white-space: pre-wrap;
+      }
+
+      .apex-about {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+      }
+
+      .apex-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-top: 1.25rem;
+      }
+
+      .apex-actions button {
+        border: none;
+        border-radius: 10px;
+        padding: 0.65rem 1rem;
+        font-size: 0.88rem;
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        background: #2563eb;
+        color: #fff;
+      }
+
+      .btn-danger {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+
+      .btn-muted {
+        background: #e2e8f0;
+        color: #334155;
+      }
+
+      .apex-empty,
+      .apex-error,
+      .apex-loading {
+        color: #64748b;
+        font-size: 0.92rem;
+      }
+
+      .apex-error {
+        color: #b91c1c;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        background: #dcfce7;
+        color: #166534;
+        margin-left: 0.35rem;
+      }
+
+      .badge.pending {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .apex-deps {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+      }
+
+      .apex-deps h3 {
+        margin: 0 0 0.5rem;
+        font-size: 0.92rem;
+      }
+
+      .apex-deps ul {
+        margin: 0;
+        padding-left: 1.1rem;
+        color: #475569;
+        font-size: 0.88rem;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="apex-root">
+      <aside class="apex-sidebar">
+        <h1>Apex Store</h1>
+        <p>Browse apps, review details, and install or uninstall for your account.</p>
+        <div id="catalog-list" class="apex-list"></div>
+      </aside>
+      <main class="apex-main">
+        <div id="catalog-detail" class="apex-card apex-empty">Select an app to view details.</div>
+      </main>
+    </div>
+    <script type="module" src="/apps/apex/view/store.js"></script>
+  </body>
+</html>

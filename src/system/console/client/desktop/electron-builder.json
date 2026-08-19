@@ -1,0 +1,30 @@
+{
+  "appId": "com.flypc.desktop",
+  "productName": "Flypc",
+  "icon": "build/icon.png",
+  "artifactName": "flypc-desktop-${version}-${arch}.${ext}",
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "linux": {
+    "target": [
+      "deb",
+      "rpm"
+    ],
+    "category": "Utility",
+    "maintainer": "FlyPC <maintainers@flypc.in>"
+  },
+  "win": {
+    "target": [
+      "portable",
+      "nsis"
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

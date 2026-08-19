@@ -1,0 +1,23 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/nextcloud",
+    "image": "nextcloud:latest",
+    "storageMount": "/var/www/html",
+    "mounts": [
+        "data",
+        "config",
+        "workspace"
+    ],
+    "env": {
+        "NEXTCLOUD_ADMIN_USER": "admin",
+        "OVERWRITEWEBROOT": "/nextcloud",
+        "OVERWRITEPROTOCOL": "https",
+        "OVERWRITEHOST": "localhost",
+        "OVERWRITECLIURL": "https://localhost/nextcloud"
+    },
+    "ports": {
+        "http": 80
+    }
+}

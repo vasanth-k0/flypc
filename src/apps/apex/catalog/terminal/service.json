@@ -1,0 +1,16 @@
+{
+    "type": "daemon",
+    "readonly": true,
+    "autorun": false,
+    "dir": "src/apps/terminal",
+    "image": false,
+    "tty": {
+        "command": "bash"
+    },
+    "ports": {
+        "tty": 7681,
+        "users": {
+            "admin": 7171
+        }
+    }
+}

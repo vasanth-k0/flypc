@@ -1,0 +1,35 @@
+{
+  "name": "@flypc/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5175",
+    "build:web": "vite build",
+    "sync": "npm run build:web && cap sync",
+    "build:android": "npm run build:web && cap sync android && (cd android && ./gradlew assembleRelease && ./gradlew bundleRelease) && mkdir -p ../../../../../dist/apps/android && cp android/app/build/outputs/apk/release/app-release.apk ../../../../../dist/apps/android/flypc-mobile.apk && cp android/app/build/outputs/bundle/release/app-release.aab ../../../../../dist/apps/android/flypc-mobile.aab",
+    "build:ios": "npm run build:web && cap sync ios && mkdir -p ../../../../../dist/apps/ios && echo \"Open ios/App/App.xcworkspace in Xcode and export IPA to ../../../../../dist/apps/ios\" > ../../../../../dist/apps/ios/README.txt"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.3.2",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.4.2",
+    "@capacitor/screen-orientation": "^7.0.4",
+    "@capacitor/status-bar": "^7.0.6",
+    "@reduxjs/toolkit": "^2.9.0",
+    "antd": "^6.5.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-redux": "^9.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.2",
+    "@capacitor/cli": "^7.4.2",
+    "@capacitor/ios": "^7.4.2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7"
+  }
+}

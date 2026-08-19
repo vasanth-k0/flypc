@@ -1,0 +1,8 @@
+{
+    "name": "Terminal",
+    "icon": "CodeFilled",
+    "description": "Managed web shell powered by ttyd.",
+    "portDefaults": {
+        "admin": 7171
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "type": "run-once",
+    "readonly": true,
+    "dir": "src/apps/coderun-lite",
+    "actions": {
+        "py": {
+            "executor": "python",
+            "script": "/controller/run.py"
+        },
+        "php": {
+            "executor": "php",
+            "script": "/controller/run.php"
+        },
+        "js": {
+            "executor": "node",
+            "script": "/controller/run.js"
+        }
+    }
+}

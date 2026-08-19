@@ -1,0 +1,511 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: transparent;
+}
+
+.shell-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid #e8eaed;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.shell-root.is-dragging {
+  cursor: grabbing;
+}
+
+/* Full-screen transparent layer shown only while dragging.
+   Sits above the iframe so mousemove/mouseup aren’t swallowed
+   by the iframe content, but has no visual effect. */
+.drag-capture-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  cursor: grabbing;
+  pointer-events: none;
+}
+
+.drag-capture-overlay--active {
+  pointer-events: auto;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+
+.no-drag {
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+/* Restore natural cursors on interactive children inside the draggable shell */
+.shell-root button,
+.shell-root input,
+.shell-root a,
+.shell-root select,
+.shell-root textarea,
+.shell-root [role='button'],
+.shell-root [role='switch'],
+.shell-root [role='slider'] {
+  cursor: pointer;
+}
+
+.shell-root input[type='text'],
+.shell-root input[type='search'],
+.shell-root textarea {
+  cursor: text;
+}
+
+
+.viewport-area {
+  position: absolute;
+  inset: 0;
+}
+
+.shell-viewport {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+}
+
+/* Transparent layer above the iframe that captures press-and-hold for window
+   drag. Quick clicks are forwarded to iframe content via sendInputEvent. */
+.iframe-drag-shim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  cursor: default;
+}
+
+.shell-root.is-dragging .iframe-drag-shim {
+  pointer-events: none;
+}
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #5f5f5f;
+}
+
+.panel-trigger {
+  display: none;
+}
+
+.sidebar-handle {
+  position: absolute !important;
+  bottom: 25px;
+  left: 0;
+  width: 46px !important;
+  height: 35px !important;
+  min-width: 46px !important;
+  border: none !important;
+  border-radius: 0 1rem 1rem 0 !important;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.24) !important;
+  color: #ffffff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  z-index: 40;
+  transition: left 180ms ease, transform 180ms ease, box-shadow 180ms ease !important;
+}
+
+.sidebar-handle.ant-btn {
+  width: 46px !important;
+  height: 31px !important;
+}
+
+.sidebar-handle.open {
+  left: 16px;
+  border-radius: 1rem 0 0 1rem !important;
+}
+
+.sidebar-handle:hover {
+  transform: scale(1.05);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.3) !important;
+}
+
+.sidebar-handle__icon {
+  position: relative;
+  z-index: 2;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.sidebar-handle__bubble {
+  position: absolute;
+  left: 5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.sidebar-handle.open .sidebar-handle__bubble {
+  left: 7px;
+  border-radius: 1rem 0 1rem 0 !important;
+}
+
+.sidebar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 24;
+}
+
+.settings-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 86vw);
+  max-width: 100%;
+  height: 100%;
+  background: rgba(245, 247, 250, 0.98);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+  transition: transform 180ms ease, opacity 180ms ease, padding 180ms ease;
+  z-index: 25;
+  padding: 20px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 36px rgba(15, 23, 42, 0.18);
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-panel.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  width: 100%;
+  padding-top: 6px;
+}
+
+.settings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.settings-toolbar__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-toolbar__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.settings-toolbar__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-toolbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-toolbar__button {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border: none !important;
+  border-radius: 50% !important;
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.settings-toolbar__button:hover {
+  background: #cbd5e1 !important;
+}
+
+.logo-wrap {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.logo-wrap img {
+  display: block;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.logo-wrap p {
+  margin: 12px 0 0 0;
+  letter-spacing: 2px;
+  font-weight: 600;
+  color: #222;
+}
+
+.endpoint-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.endpoint-input {
+  flex: 1;
+}
+
+.endpoint-add-btn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  aspect-ratio: 1 / 1;
+  border-radius: 50% !important;
+  flex: 0 0 auto;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.endpoint-add-btn.ant-btn {
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.endpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.endpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.endpoint-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.endpoint-main.ant-btn {
+  justify-content: flex-start;
+  height: 30px;
+}
+
+.endpoint-main span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpoint-remove {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  aspect-ratio: 1 / 1;
+  border-radius: 50% !important;
+  flex: 0 0 auto;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.endpoint-remove.ant-btn {
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.online {
+  background: #22c55e;
+}
+
+.dot.offline {
+  background: #ef4444;
+}
+
+.orientation-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.orientation-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333333;
+  user-select: none;
+  text-transform: lowercase;
+}
+
+.desktop-close {
+  margin-top: 18px;
+  width: 100%;
+  height: 34px;
+  border: 1px solid #444;
+  background: white;
+  cursor: pointer;
+}
+
+.viewport-hint {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 15;
+  background: rgba(18, 18, 18, 0.86);
+  color: #fff;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.viewport-hint__close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: #fff;
+  font-size: 14px;
+  padding: 0 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.viewport-hint__close.ant-btn {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  background: transparent !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+}
+
+.viewport-hint h3 {
+  margin: 0 32px 8px 0;
+  font-size: 14px;
+}
+
+.viewport-hint p {
+  margin: 4px 0;
+}
+
+.viewport-hint button {
+  margin-top: 10px;
+  height: 30px;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+.flypc-offline-message {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.flypc-offline-message__card {
+  min-width: 260px;
+  max-width: min(86vw, 360px);
+  color: #1f2937;
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-align: center;
+  background: #ffffff;
+}
+
+.flypc-offline-message p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.flypc-offline-message p + p {
+  margin-top: 4px;
+}
+

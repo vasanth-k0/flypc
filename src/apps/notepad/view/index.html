@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notes</title>
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: Inter, system-ui, sans-serif;
+        background: #ffffff;
+        color: #1f1f1f;
+      }
+
+      .notes-root {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        height: 100%;
+        min-height: 0;
+      }
+
+      .notes-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.7rem 0.9rem;
+        border-bottom: 1px solid #e5e5e5;
+        background: #fafafa;
+      }
+
+      .notes-header strong {
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+
+      .notes-header span {
+        color: #605e5c;
+        font-size: 0.78rem;
+      }
+
+      .notes-tabs {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.45rem 0.55rem;
+        border-bottom: 1px solid #e5e5e5;
+        background: #ffffff;
+        overflow-x: auto;
+      }
+
+      .notes-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        max-width: 180px;
+        padding: 0.35rem 0.55rem;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        background: #f5f5f5;
+        color: #323130;
+        font-size: 0.78rem;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .notes-tab.active {
+        background: #ffffff;
+        border-color: #0078d4;
+        box-shadow: inset 0 -2px 0 #0078d4;
+      }
+
+      .notes-tab-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .notes-tab-close {
+        border: none;
+        background: transparent;
+        color: #605e5c;
+        cursor: pointer;
+        font-size: 0.85rem;
+        line-height: 1;
+        padding: 0;
+      }
+
+      .notes-tab-add {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border: 1px dashed #c8c6c4;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #0078d4;
+        font-size: 1rem;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .notes-editor {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: #ffffff;
+      }
+
+      #editor {
+        flex: 1;
+        min-height: 0;
+      }
+
+      .ql-toolbar.ql-snow {
+        border: 0;
+        border-bottom: 1px solid #e5e5e5;
+        background: #fafafa;
+      }
+
+      .ql-container.ql-snow {
+        border: 0;
+        font-size: 0.95rem;
+      }
+
+      .ql-editor {
+        min-height: 100%;
+        padding: 1rem 1.1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="notes-root">
+      <header class="notes-header">
+        <div>
+          <strong>Notes</strong>
+          <span>Stored locally in this browser</span>
+        </div>
+      </header>
+
+      <div class="notes-tabs" id="tabBar"></div>
+
+      <div class="notes-editor">
+        <div id="editor"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+    <script>
+      const STORAGE_KEY = 'flypc-notes-v1'
+      const LEGACY_KEY = 'flypc-notepad'
+
+      const createId = () => `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+      const defaultState = () => ({
+        activeId: '',
+        tabs: [],
+      })
+
+      const loadState = () => {
+        try {
+          const raw = window.localStorage.getItem(STORAGE_KEY)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+              return parsed
+            }
+          }
+        } catch {
+          // Ignore invalid saved state.
+        }
+
+        const legacy = window.localStorage.getItem(LEGACY_KEY)
+        const firstTab = {
+          id: createId(),
+          title: 'Note 1',
+          content: legacy ? `<p>${legacy.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>` : '',
+          updatedAt: new Date().toISOString(),
+        }
+
+        return {
+          activeId: firstTab.id,
+          tabs: [firstTab],
+        }
+      }
+
+      let state = loadState()
+      if (!state.activeId && state.tabs[0]) {
+        state.activeId = state.tabs[0].id
+      }
+
+      const tabBar = document.getElementById('tabBar')
+      let saveTimer = null
+      let isApplyingEditor = false
+
+      const quill = new Quill('#editor', {
+        theme: 'snow',
+        placeholder: 'Start writing…',
+        modules: {
+          toolbar: [
+            [{ header: [1, 2, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['blockquote', 'code-block'],
+            ['link'],
+            ['clean'],
+          ],
+        },
+      })
+
+      const persistState = () => {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      }
+
+      const schedulePersist = () => {
+        window.clearTimeout(saveTimer)
+        saveTimer = window.setTimeout(() => persistState(), 180)
+      }
+
+      const getActiveTab = () => state.tabs.find((tab) => tab.id === state.activeId) ?? null
+
+      const deriveTitle = (html, fallback) => {
+        const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        if (!text) {
+          return fallback
+        }
+        return text.length > 28 ? `${text.slice(0, 28)}…` : text
+      }
+
+      const renderTabs = () => {
+        tabBar.innerHTML = ''
+
+        state.tabs.forEach((tab) => {
+          const button = document.createElement('button')
+          button.type = 'button'
+          button.className = `notes-tab${tab.id === state.activeId ? ' active' : ''}`
+          button.title = tab.title
+
+          const label = document.createElement('span')
+          label.className = 'notes-tab-label'
+          label.textContent = tab.title
+
+          const close = document.createElement('button')
+          close.type = 'button'
+          close.className = 'notes-tab-close'
+          close.setAttribute('aria-label', `Close ${tab.title}`)
+          close.textContent = '×'
+          close.addEventListener('click', (event) => {
+            event.stopPropagation()
+            closeTab(tab.id)
+          })
+
+          button.appendChild(label)
+          if (state.tabs.length > 1) {
+            button.appendChild(close)
+          }
+
+          button.addEventListener('click', () => selectTab(tab.id))
+          tabBar.appendChild(button)
+        })
+
+        const addButton = document.createElement('button')
+        addButton.type = 'button'
+        addButton.className = 'notes-tab-add'
+        addButton.title = 'New note'
+        addButton.textContent = '+'
+        addButton.addEventListener('click', addTab)
+        tabBar.appendChild(addButton)
+      }
+
+      const applyEditorContent = () => {
+        const active = getActiveTab()
+        isApplyingEditor = true
+        quill.root.innerHTML = active?.content || ''
+        isApplyingEditor = false
+      }
+
+      const saveActiveEditor = () => {
+        const active = getActiveTab()
+        if (!active) {
+          return
+        }
+
+        active.content = quill.root.innerHTML
+        active.updatedAt = new Date().toISOString()
+        active.title = deriveTitle(active.content, active.title)
+        schedulePersist()
+        renderTabs()
+      }
+
+      const selectTab = (tabId) => {
+        if (tabId === state.activeId) {
+          return
+        }
+
+        saveActiveEditor()
+        state.activeId = tabId
+        applyEditorContent()
+        renderTabs()
+        persistState()
+      }
+
+      const addTab = () => {
+        saveActiveEditor()
+
+        const nextIndex = state.tabs.length + 1
+        const tab = {
+          id: createId(),
+          title: `Note ${nextIndex}`,
+          content: '',
+          updatedAt: new Date().toISOString(),
+        }
+
+        state.tabs.push(tab)
+        state.activeId = tab.id
+        applyEditorContent()
+        renderTabs()
+        persistState()
+        quill.focus()
+      }
+
+      const closeTab = (tabId) => {
+        if (state.tabs.length === 1) {
+          return
+        }
+
+        const index = state.tabs.findIndex((tab) => tab.id === tabId)
+        if (index < 0) {
+          return
+        }
+
+        if (tabId === state.activeId) {
+          const nextTab = state.tabs[index + 1] ?? state.tabs[index - 1]
+          state.activeId = nextTab.id
+        }
+
+        state.tabs.splice(index, 1)
+        applyEditorContent()
+        renderTabs()
+        persistState()
+      }
+
+      quill.on('text-change', () => {
+        if (isApplyingEditor) {
+          return
+        }
+        saveActiveEditor()
+      })
+
+      renderTabs()
+      applyEditorContent()
+      persistState()
+    </script>
+  </body>
+</html>

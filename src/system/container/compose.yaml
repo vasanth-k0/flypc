@@ -1,0 +1,21 @@
+services:
+  flypc:
+    build:
+      context: ../../..
+      dockerfile: src/system/container/Dockerfile
+    image: flypc-container:latest
+    container_name: flypc
+    restart: unless-stopped
+    environment:
+      FLYPC_DOMAIN: ${FLYPC_DOMAIN:?Set FLYPC_DOMAIN to the public DNS name.}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:?Set LETSENCRYPT_EMAIL to the certificate contact email.}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+
+volumes:
+  letsencrypt:
+  certbot-webroot:

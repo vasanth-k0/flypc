@@ -1,0 +1,8 @@
+{
+  "name": "Flypc",
+  "colorPalette": "Geekblue",
+  "ui": "hybrid-console",
+  "gotoConsole": true,
+  "defaultApp": "coderun-lite",
+  "wallp": 2
+}

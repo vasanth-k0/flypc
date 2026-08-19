@@ -10,11 +10,11 @@ describe('ColorPalette', () => {
     expect(ColorPalette.secondary).toBe('#85a5ff')
   })
 
-  it('configures a valid theme and updates primary/secondary', () => {
-    ColorPalette.configure('Lime')
+  it('configures the White palette', () => {
+    ColorPalette.configure('White')
 
-    expect(ColorPalette.primary).toBe('#37d637')
-    expect(ColorPalette.secondary).toBe('#3ae43a')
+    expect(ColorPalette.primary).toBe('#efefef')
+    expect(ColorPalette.secondary).toBe('#ffffff')
   })
 
   it('falls back to Geekblue when configured with an invalid theme', () => {

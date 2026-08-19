@@ -1,0 +1,16 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/jellyfin",
+    "image": "jellyfin/jellyfin:latest",
+    "storageMount": "/config",
+    "mounts": [
+        "data",
+        "config",
+        "workspace"
+    ],
+    "ports": {
+        "http": 8096
+    }
+}

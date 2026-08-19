@@ -1,0 +1,55 @@
+name: rhost
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: rhost-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./data/rhost/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - rhost
+    networks:
+      - rhost-net
+
+  rhost:
+    build:
+      context: .
+      dockerfile: docker/rhost/Dockerfile
+    container_name: rhost-console
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      FLYPC_BRAND_OWNER: flypc
+      FLYPC_ROOT: /flypc/source
+      FLYPC_FE_DIST: /flypc/dist/fe
+      APP_METADATA_ROOT: /flypc/dist/be/app
+      APP_STORAGE_ROOT: /flypc/dist/storage/internal
+      TENANT_HOME_ROOT: /flypc/data/homes
+      RHOST_DATA_ROOT: /flypc/data
+      SQLITE_STORAGE: /flypc/data/database.sqlite
+      CADDYFILE_PATH: /flypc/data/caddy/Caddyfile
+      RHOST_UPSTREAM: rhost:3000
+      ENABLE_SYSTEM_PROVISIONING: "false"
+    volumes:
+      - ./dist:/flypc/dist
+      - ./src:/flypc/source:ro
+      - ./data/rhost:/flypc/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "3000"
+    networks:
+      - rhost-net
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  rhost-net:
+    driver: bridge

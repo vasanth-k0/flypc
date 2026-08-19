@@ -1,0 +1,20 @@
+{
+    "type": "daemon",
+    "readonly": false,
+    "autorun": false,
+    "dir": "src/apps/plex",
+    "image": "plexinc/pms-docker:latest",
+    "storageMount": "/config",
+    "mounts": [
+        "data",
+        "config",
+        "workspace"
+    ],
+    "env": {
+        "PLEX_CLAIM": "",
+        "TZ": "UTC"
+    },
+    "ports": {
+        "http": 32400
+    }
+}
