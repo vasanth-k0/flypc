@@ -21,6 +21,7 @@ export type SidebarNavProps = {
   secondaryColor: string
   sidebarMenuItems: MenuItem[]
   accountSubmenuItems: AccountSubmenuItem[]
+  showAccountSubmenu: boolean
   settingsMenuItem: MenuItem
   activeWindowId: WindowId
   authToken: string
@@ -44,6 +45,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   secondaryColor,
   sidebarMenuItems,
   accountSubmenuItems,
+  showAccountSubmenu,
   settingsMenuItem,
   activeWindowId,
   authToken,
@@ -66,15 +68,23 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       justifyContent: 'space-between',
       padding: isDashboard
         ? isDashboardMenuVisible
-          ? '1rem 0.75rem'
+          ? isLandscape
+            ? '1rem 3px'
+            : '1rem 0.75rem'
           : '1rem 0'
-        : '0.75rem 0.25rem',
+        : isLandscape
+          ? '0.75rem 3px'
+          : '0.75rem 0.25rem',
       boxSizing: 'border-box',
       background: primaryColor,
-      borderLeft: sidebarOnRight
+      borderLeft: isHybrid
+        ? undefined
+        : sidebarOnRight
         ? '1px solid rgba(255, 255, 255, 0.12)'
         : '1px solid transparent',
-      borderRight: sidebarOnRight
+      borderRight: isHybrid
+        ? undefined
+        : sidebarOnRight
         ? '1px solid transparent'
         : isDashboard && isLandscape
           ? isDashboardMenuVisible
@@ -92,7 +102,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       transition: 'width 0.28s ease, padding 0.28s ease, border-color 0.28s ease, opacity 0.16s ease',
     }}
   >
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isHybrid ? '7px' : '0.25rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isHybrid ? '10px' : '0.25rem', alignItems: isHybrid ? 'center' : undefined }}>
       {sidebarMenuItems.map((item) => {
         const isAccountHubItem = item.key === 'account-hub'
         const isActive = isAccountHubItem
@@ -100,7 +110,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           : activeWindowId === item.key
         const isUserAppItem = item.key.startsWith('app:')
         const showMenuClose = isDashboard && isUserAppItem && (isActive || hoveredClosableMenuKey === item.key)
-        const showAccountsSubmenu = isAccountHubItem && openedAccountsMenuArea === 'sidebar'
+        const showAccountsSubmenu = isAccountHubItem && showAccountSubmenu && openedAccountsMenuArea === 'sidebar'
 
         return (
           <div
@@ -123,7 +133,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               title={item.label}
               onClick={() => {
                 if (isAccountHubItem) {
-                  onToggleAccountsMenuArea(openedAccountsMenuArea === 'sidebar' ? null : 'sidebar')
+                  if (showAccountSubmenu) {
+                    onToggleAccountsMenuArea(openedAccountsMenuArea === 'sidebar' ? null : 'sidebar')
+                    return
+                  }
+                  onWindowChange('accounts')
                   return
                 }
                 onWindowChange(item.key as WindowId)
@@ -133,11 +147,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 alignItems: 'center',
                 justifyContent: isDashboard ? 'flex-start' : 'center',
                 gap: isDashboard ? '0.5rem' : '0',
-                width: '100%',
+                width: isHybrid ? 'auto' : '100%',
                 height: undefined,
                 margin: undefined,
-                padding: isDashboard ? '0.45rem 0.65rem' : '0.5rem',
-                borderRadius: '7px',
+                padding: isDashboard ? '0.45rem 0.65rem' : isHybrid ? '8px' : '0.5rem',
+                borderRadius: isHybrid ? '6px' : '7px',
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '0.78rem',
@@ -150,7 +164,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 boxShadow: 'none',
               }}
             >
-              <span style={{ fontSize: isDashboard ? '0.85rem' : isHybrid ? '17px' : '21px', flexShrink: 0 }}>
+              <span style={{ fontSize: isDashboard ? '0.85rem' : isHybrid ? '17px' : '21px', flexShrink: 0, display: isHybrid ? 'inline-flex' : undefined, alignItems: isHybrid ? 'center' : undefined, justifyContent: isHybrid ? 'center' : undefined }}>
                 {withMenuIconColor(item.icon, getMenuItemColor(isActive))}
               </span>
               {isDashboard && (
@@ -183,6 +197,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 </span>
               )}
             </button>
+            {showAccountSubmenu ? (
             <FloatingSubmenu
               open={showAccountsSubmenu}
               anchorRef={sidebarAccountHubRef}
@@ -232,6 +247,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 </button>
               ))}
             </FloatingSubmenu>
+            ) : null}
           </div>
         )
       })}
@@ -248,8 +264,9 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       title={settingsMenuItem.label}
       onClick={() => onWindowChange('settings')}
       style={{
-        width: '100%',
-        padding: isDashboard ? '0.45rem 0.65rem' : '0.5rem',
+        width: isHybrid ? 'auto' : '100%',
+        alignSelf: isHybrid ? 'center' : undefined,
+        padding: isDashboard ? '0.45rem 0.65rem' : isHybrid ? '8px' : '0.5rem',
         borderRadius: '6px',
         border: 'none',
         background: activeWindowId === 'settings' ? secondaryColor : 'transparent',
@@ -262,7 +279,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         cursor: 'pointer',
       }}
     >
-      <span style={{ fontSize: isDashboard ? '0.85rem' : '15px', flexShrink: 0 }}>
+      <span style={{ fontSize: isDashboard ? '0.85rem' : isHybrid ? '17px' : '15px', flexShrink: 0, display: isHybrid ? 'inline-flex' : undefined, alignItems: isHybrid ? 'center' : undefined, justifyContent: isHybrid ? 'center' : undefined }}>
         {withMenuIconColor(settingsMenuItem.icon, getMenuItemColor(activeWindowId === 'settings'))}
       </span>
       {isDashboard && <span>Settings</span>}

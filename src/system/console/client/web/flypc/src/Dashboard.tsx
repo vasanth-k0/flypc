@@ -1,13 +1,14 @@
 import React from 'react'
 import { Button } from 'antd'
 import { useAppSelector, useAppDispatch } from './store/hooks'
-import { setControlsSide, setLayoutMode, setWallpaper } from './store/settingsSlice'
-import type { LayoutMode } from './store/settingsSlice'
+import { setLayoutMode, setWallpaper, setWindowLayout, pickRandomColorPalette, pickRandomLayoutMode, type LayoutMode, type WindowLayout } from './store/settingsSlice'
+import { pickRandomWallpaperId } from './utils/wallpapers'
 import { setColorPalette } from './store/themeSlice'
 import { ColorPalette } from './globals/ColorPalette'
 import { useUpdateSettingMutation } from './store/settingsApi'
 import { useGetAppsListQuery } from './store/appsApi'
 import { AppWindow } from './components/AppWindow'
+import { MainContextMenu } from './components/context/MainContextMenu'
 import { FileExplorer } from './components/FileExplorer'
 import { NativeWindowContent } from './components/NativeWindowContent'
 import { SystemSettingsPanel } from './components/SystemSettingsPanel'
@@ -19,11 +20,14 @@ import { AccountsView } from './components/views/AccountsView'
 import { MembersView } from './components/views/MembersView'
 import { SidebarNav } from './components/navigation/SidebarNav'
 import { WebLayoutNav } from './components/navigation/WebLayoutNav'
+import { SolidSlateNav } from './components/navigation/SolidSlateNav'
 import { WindowChrome } from './components/window/WindowChrome'
 import { useAuth } from './hooks/useAuth'
 import { useWindowManager } from './hooks/useWindowManager'
+import { useFullscreenWindowSwitcher } from './hooks/useFullscreenWindowSwitcher'
 import { useLayoutContext } from './hooks/useLayoutContext'
 import { renderAppIcon, withMenuIconColor } from './utils/menuIcons'
+import { DESKTOP_WINDOW_MAX_WIDTH_PX } from './utils/windowLayout'
 import type { WindowId } from './types/dashboard'
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 
@@ -57,13 +61,14 @@ const hybridAppbrick: React.CSSProperties = {
   height: 'calc(4.15rem + 3px)',
   boxShadow: '0 2px 10px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.08)',
   boxSizing: 'border-box',
+  flexShrink: 0,
 }
 
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch()
   const [updateSetting] = useUpdateSettingMutation()
 
-  const { name, ui: layoutMode, controlsSide, wallp: activeWallp } = useAppSelector((state) => state.settings)
+  const { name, ui: layoutMode, windowLayout, wallp: activeWallp } = useAppSelector((state) => state.settings)
   const { activeTheme, primary, secondary } = useAppSelector((state) => state.theme)
 
   const [hoveredClosableMenuKey, setHoveredClosableMenuKey] = React.useState<string | null>(null)
@@ -76,7 +81,7 @@ const Dashboard: React.FC = () => {
   const {
     activeWindowId,
     openApps,
-    appSessionVersion,
+    appSessionVersions,
     openAppControls,
     setOpenAppControls,
     isMaximized,
@@ -84,9 +89,12 @@ const Dashboard: React.FC = () => {
     handleCloseWindow,
     handleMinimizeWindow,
     handleMaximizeWindow,
+    exitWindowMaximize,
     handleWindowChange: changeWindow,
     handleAppOpen,
-    refreshAppSessions,
+    focusWindow,
+    refreshAllAppSessions,
+    pauseAllOpenApps,
     setActiveWindowId,
   } = useWindowManager({
     layoutMode,
@@ -113,14 +121,15 @@ const Dashboard: React.FC = () => {
     setCurrentPassword,
     setNewPassword,
     handleLoginRequest,
-    handleLogout,
+    handleLogoutRequest,
     handleChangeName,
     handleResetPassword,
   } = useAuth({
     onLoginSuccess: () => {
-      refreshAppSessions()
+      refreshAllAppSessions()
       setActiveWindowId('apps')
     },
+    pauseOpenApps: pauseAllOpenApps,
   })
 
   const { data: apps = [], error: appsQueryError } = useGetAppsListQuery()
@@ -167,12 +176,19 @@ const Dashboard: React.FC = () => {
     changeWindow(windowId)
   }, [changeWindow])
 
+  useFullscreenWindowSwitcher({
+    activeWindowId,
+    openApps,
+    includeMembers: authUser?.role === 'Admin',
+    onFocusWindow: focusWindow,
+  })
+
   const layout = useLayoutContext({
     layoutMode,
     activeTheme,
     primary,
     secondary,
-    controlsSide,
+    windowLayout,
     activeWindowId,
     openApps,
     openAppControls,
@@ -183,21 +199,26 @@ const Dashboard: React.FC = () => {
 
   const {
     accountSubmenuItems,
+    showAccountSubmenu,
     isDashboard,
     isDesktop,
     isHybrid,
     isSharp,
     isWeb,
+    isSolidSlate,
     sidebarOnRight,
     isAppsShortcutView,
     isShortcutSurface,
     desktopWindowHeight,
     isWindowMaximized,
     activeAppKey,
-    hasRightControlsOpen,
-    hasRightControls,
+    controlsSide,
+    titleBarStyle,
+    hasPartialTitleBar,
+    partialTitleSide,
+    hasPartialControlsOpen,
     controlsPanelWidth,
-    rightControlsHeaderWidth,
+    partialControlsHeaderWidth,
     titleBarHeight,
     primaryColor,
     secondaryColor,
@@ -213,18 +234,59 @@ const Dashboard: React.FC = () => {
     settingsMenuItem,
     webPrimaryNavItems,
     getMenuItemColor,
+    solidSlateIconColor,
+    solidSlateTopBarColor,
+    solidSlateBackdropColor,
+    solidSlateLabelColor,
   } = layout
 
+  React.useEffect(() => {
+    if (!showAccountSubmenu) {
+      setOpenedAccountsMenuArea(null)
+    }
+  }, [showAccountSubmenu])
+
   const shouldHideDashboardWindowArea = false
+
+  const renderWindowChrome = (embeddedInPane = false) => (
+    <WindowChrome
+      embeddedInPane={embeddedInPane}
+      hasPartialTitleBar={hasPartialTitleBar}
+      partialTitleSide={partialTitleSide}
+      hasPartialControlsOpen={hasPartialControlsOpen}
+      useLightTitleBar={useLightTitleBar}
+      partialControlsHeaderWidth={partialControlsHeaderWidth}
+      titleBarHeight={titleBarHeight}
+      activeAppKey={activeAppKey}
+      openAppControls={openAppControls}
+      isHybrid={isHybrid}
+      isWeb={isWeb}
+      activeWindowId={activeWindowId}
+      activeLabel={activeLabel}
+      windowTitleColor={windowTitleColor}
+      titleButtonIconColor={titleButtonIconColor}
+      primaryColor={primaryColor}
+      isMaximized={isMaximized}
+      onToggleAppControls={(appKey) => {
+        setOpenAppControls((current) => ({
+          ...current,
+          [appKey]: !current[appKey],
+        }))
+      }}
+      onMinimize={handleMinimizeWindow}
+      onMaximize={handleMaximizeWindow}
+      onClose={handleCloseWindow}
+    />
+  )
 
   const handleLayoutModeChange = (mode: LayoutMode) => {
     dispatch(setLayoutMode(mode)) // optimistic update
     void updateSetting({ action: 'update', property: 'ui', value: mode })
   }
 
-  const handleControlsSideChange = (side: 'left' | 'right') => {
-    dispatch(setControlsSide(side))
-    void updateSetting({ action: 'update', property: 'controlsSide', value: side })
+  const handleWindowLayoutChange = (layout: WindowLayout) => {
+    dispatch(setWindowLayout(layout))
+    void updateSetting({ action: 'update', property: 'windowLayout', value: layout })
   }
 
   const handleWallpaperChange = (id: number) => {
@@ -271,6 +333,18 @@ const Dashboard: React.FC = () => {
     void hostWindow.flypcDesktop?.toggleFullScreen?.()
   }, [])
 
+  const handleRandomWallpaper = () => {
+    handleWallpaperChange(pickRandomWallpaperId(activeWallp))
+  }
+
+  const handleRandomLayout = () => {
+    handleLayoutModeChange(pickRandomLayoutMode(layoutMode))
+  }
+
+  const handleRandomColorPalette = () => {
+    handleColorPaletteChange(pickRandomColorPalette(activeTheme))
+  }
+
   return (
     <div
       style={{
@@ -283,7 +357,7 @@ const Dashboard: React.FC = () => {
       }}
     >
       {/* Header - Only visible in Dashboard mode */}
-      {isDashboard && (
+      {isDashboard && !isWindowMaximized && (
         <header
           style={{
             height: '60px',
@@ -299,7 +373,7 @@ const Dashboard: React.FC = () => {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <img
-              src="/logo.png"
+              src="/logo.png?v=4"
               alt="FlyPC"
               style={{
                 width: '32px',
@@ -347,12 +421,48 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Main Layout Area */}
+      <MainContextMenu
+        isLoggedIn={Boolean(authUser)}
+        isAdmin={authUser?.role === 'Admin'}
+        onLogin={() => setActiveWindowId('accounts')}
+        onLogout={handleLogoutRequest}
+        onRandomWallpaper={handleRandomWallpaper}
+        onRandomLayout={handleRandomLayout}
+        onRandomColorPalette={handleRandomColorPalette}
+        onEnterPageFullscreen={exitWindowMaximize}
+      >
       <div
         id="dash"
+        className={
+          isSolidSlate
+            ? `layout-solid-slate${isWhitePalette ? ' layout-solid-slate--white' : ''}`
+            : isHybrid
+              ? [
+                  'layout-hybrid-console',
+                  !isAppsShortcutView ? 'layout-hybrid-console--joined' : '',
+                  sidebarOnRight ? 'layout-hybrid-console--menubar-right' : 'layout-hybrid-console--menubar-left',
+                ].filter(Boolean).join(' ')
+              : undefined
+        }
         style={{
+          ...(isSolidSlate
+            ? {
+                ['--solid-slate-primary' as string]: primaryColor,
+                ['--solid-slate-topbar' as string]: solidSlateTopBarColor,
+                ['--solid-slate-icon' as string]: solidSlateIconColor,
+                ['--solid-slate-backdrop' as string]: solidSlateBackdropColor,
+                ['--solid-slate-label' as string]: solidSlateLabelColor,
+              }
+            : {}),
           display: 'flex',
           flex: 1,
-          flexDirection: isDesktop || isWeb ? 'column' : (isDashboard || isHybrid) ? (isLandscape ? 'row' : 'row-reverse') : 'row',
+          flexDirection: isSolidSlate
+            ? 'column'
+            : isDesktop || isWeb
+              ? 'column'
+              : (isDashboard || isHybrid)
+                ? (isLandscape ? 'row' : 'row-reverse')
+                : 'row',
           height: isDashboard ? 'calc(100% - 60px)' : '100%',
           overflow: 'hidden',
           position: 'relative',
@@ -361,10 +471,16 @@ const Dashboard: React.FC = () => {
           border: isDashboard ? '1px solid rgba(0, 0, 0, 0.07)' : 'none',
           boxShadow: isDashboard ? '0 2px 8px rgba(15, 23, 42, 0.08)' : 'none',
           margin: isDashboard ? '0 10px 10px' : '0',
-          padding: isSharp ? 'clamp(1rem, 4vw, 3rem) clamp(1rem, 6vw, 5rem) clamp(5.75rem, 9vw, 7rem)' : '0',
+          padding: isHybrid
+            ? isLandscape
+              ? '10px'
+              : '7px'
+            : isSharp
+              ? 'clamp(1rem, 4vw, 3rem) clamp(1rem, 6vw, 5rem) clamp(5.75rem, 9vw, 7rem)'
+              : '0',
         }}
       >
-        {isDashboard && (
+        {isDashboard && !isLandscape && (
           <button
             title={isDashboardMenuVisible ? 'Collapse menu' : 'Expand menu'}
             onClick={() => setIsDashboardMenuVisible((current) => !current)}
@@ -391,7 +507,7 @@ const Dashboard: React.FC = () => {
         )}
 
         {/* Menu on side - left in dashboard landscape, right in dashboard portrait, left rail in hybrid */}
-        {(isDashboard || isHybrid) && (
+        {(isDashboard || isHybrid) && !isWindowMaximized && (
           <SidebarNav
             isDashboard={isDashboard}
             isHybrid={isHybrid}
@@ -402,6 +518,7 @@ const Dashboard: React.FC = () => {
             secondaryColor={secondaryColor}
             sidebarMenuItems={sidebarMenuItems}
             accountSubmenuItems={accountSubmenuItems}
+            showAccountSubmenu={showAccountSubmenu}
             settingsMenuItem={settingsMenuItem}
             activeWindowId={activeWindowId}
             authToken={authToken}
@@ -416,7 +533,28 @@ const Dashboard: React.FC = () => {
           />
         )}
 
-        {isWeb && (
+        {isSolidSlate && !isWindowMaximized && (
+          <SolidSlateNav
+            primaryColor={primaryColor}
+            iconColor={solidSlateIconColor}
+            labelColor={solidSlateLabelColor}
+            isWhitePalette={isWhitePalette}
+            topBarColor={solidSlateTopBarColor}
+            sidebarMenuItems={sidebarMenuItems}
+            accountSubmenuItems={accountSubmenuItems}
+            showAccountSubmenu={showAccountSubmenu}
+            settingsMenuItem={settingsMenuItem}
+            activeWindowId={activeWindowId}
+            authToken={authToken}
+            openedAccountsMenuArea={openedAccountsMenuArea}
+            sidebarAccountHubRef={sidebarAccountHubRef}
+            getMenuItemColor={getMenuItemColor}
+            onWindowChange={handleWindowChange}
+            onToggleAccountsMenuArea={setOpenedAccountsMenuArea}
+          />
+        )}
+
+        {isWeb && !isWindowMaximized && (
           <WebLayoutNav
             isLandscape={isLandscape}
             isWhitePalette={isWhitePalette}
@@ -424,6 +562,7 @@ const Dashboard: React.FC = () => {
             secondaryColor={secondaryColor}
             primaryColor={primaryColor}
             webPrimaryNavItems={webPrimaryNavItems}
+            openApps={openApps}
             settingsMenuItem={settingsMenuItem}
             activeWindowId={activeWindowId}
             activeLabel={activeLabel}
@@ -440,18 +579,18 @@ const Dashboard: React.FC = () => {
             flex: 1,
             width: '100%',
             height: '100%',
-            padding: isDashboard || isHybrid || isWeb || isWindowMaximized || isShortcutSurface || isSharp ? '0' : '0.5rem',
+            padding: isDashboard || isHybrid || isWeb || isSolidSlate || isWindowMaximized || isShortcutSurface || isSharp ? '0' : '0.5rem',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: isDashboard || isHybrid || isWeb || isWindowMaximized || isShortcutSurface || isSharp ? 'stretch' : 'center',
+            alignItems: isDashboard || isHybrid || isWeb || isSolidSlate || isWindowMaximized || isShortcutSurface || isSharp ? 'stretch' : 'center',
             justifyContent: 'flex-start',
             boxSizing: 'border-box',
-            boxShadow: isHybrid ? '0 10px 24px rgba(15, 23, 42, 0.22)' : 'none',
+            boxShadow: 'none',
             visibility: shouldHideDashboardWindowArea ? 'hidden' : 'visible',
           }}
         >
-          {isWeb && (
+          {isWeb && !isWindowMaximized && (
             <div style={{ width: '100%', alignSelf: 'flex-start', boxSizing: 'border-box', padding: '2.25rem 3rem 1.25rem', color: '#ffffffa0', fontSize: 'clamp(0.9rem, 1.6875vw, 1.6875rem)', fontWeight: 500, letterSpacing: '-0.04em', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
               <span style={{ display: 'grid', placeItems: 'center', fontSize: '1.125em', filter: 'brightness(0) invert(1)' }}>{activeWindowIcon}</span>
               <span>{activeLabel}</span>
@@ -459,32 +598,55 @@ const Dashboard: React.FC = () => {
           )}
           <div
             id="window"
+            className={isWindowMaximized ? 'window-maximized' : undefined}
             onDoubleClick={toggleDesktopFullscreen}
             style={{
               position: isWindowMaximized ? 'fixed' : 'relative',
               inset: isWindowMaximized ? 0 : undefined,
-              width: isShortcutSurface ? '100%' : isWindowMaximized ? '100vw' : isWeb ? isLandscape ? '95%' : '97%' : isDashboard || isHybrid || isSharp ? '100%' : 'min(100%, 1000px)',
-              height: isShortcutSurface ? '100%' : isWindowMaximized ? '100vh' : isWeb ? 'calc(100% - 7.75rem)' : isDashboard || isHybrid ? '100%' : desktopWindowHeight,
-              maxWidth: isShortcutSurface || isDashboard || isHybrid || isWeb || isSharp || isWindowMaximized ? 'none' : '1000px',
-              alignSelf: isWeb || isDesktop ? 'center' : isShortcutSurface || isDashboard || isHybrid || isSharp || isWindowMaximized ? 'stretch' : 'stretch',
+              width: isShortcutSurface ? '100%' : isWindowMaximized ? '100vw' : isWeb ? isLandscape ? '95%' : '97%' : isDashboard || isHybrid || isSolidSlate || isSharp ? '100%' : `min(100%, ${DESKTOP_WINDOW_MAX_WIDTH_PX}px)`,
+              height: isShortcutSurface
+                ? '100%'
+                : isWindowMaximized
+                  ? '100vh'
+                  : isWeb
+                    ? 'calc(100% - 7.75rem)'
+                    : isSharp
+                      ? '105%'
+                      : isDashboard || isHybrid || isSolidSlate
+                        ? '100%'
+                        : desktopWindowHeight,
+              maxWidth: isShortcutSurface || isDashboard || isHybrid || isWeb || isSolidSlate || isSharp || isWindowMaximized ? 'none' : `${DESKTOP_WINDOW_MAX_WIDTH_PX}px`,
+              alignSelf: isWeb || isDesktop ? 'center' : isShortcutSurface || isDashboard || isHybrid || isSolidSlate || isSharp || isWindowMaximized ? 'stretch' : 'stretch',
               background: isShortcutSurface
                 ? 'transparent'
                 : isDashboard
                   ? '#ffffff'
                   : isWeb
                     ? '#ffffff03'
-                    : isSharp
-                      ? 'rgba(255, 255, 255, 0.19)'
-                      : 'rgba(255, 255, 255, 0.18)',
-              backdropFilter: isShortcutSurface ? 'none' : isWeb ? 'blur(3px)' : 'blur(24px)',
-              borderRadius: isWindowMaximized ? '0' : isWeb ? '10px' : isShortcutSurface || isDashboard || isHybrid || isSharp ? '0' : '5px',
+                    : isSolidSlate
+                      ? solidSlateBackdropColor
+                      : isSharp
+                        ? 'rgba(255, 255, 255, 0.19)'
+                        : 'rgba(255, 255, 255, 0.18)',
+              backdropFilter: isShortcutSurface ? 'none' : isWeb ? 'blur(3px)' : isSolidSlate ? 'none' : 'blur(24px)',
+              borderRadius: isWindowMaximized
+                ? '0'
+                : isHybrid
+                  ? undefined
+                  : isWeb
+                    ? '10px'
+                    : isShortcutSurface || isDashboard || isSolidSlate || isSharp
+                      ? '0'
+                      : '5px',
               padding: '0',
               margin: isWeb && !isWindowMaximized ? '0 auto 1rem' : undefined,
               boxShadow: isShortcutSurface
                 ? 'none'
                 : isWindowMaximized
                   ? 'none'
-                  : isDashboard
+                  : isHybrid
+                    ? 'none'
+                    : isDashboard
                     ? '0 2px 16px rgba(0,0,0,0.06)'
                     : isSharp
                       ? '0 16px 40px rgba(15, 23, 42, 0.15)'
@@ -492,42 +654,27 @@ const Dashboard: React.FC = () => {
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
+              zIndex: isWindowMaximized ? 1000 : undefined,
               transition: 'all 0.3s ease',
               color: '#0f172a',
               overflow: 'hidden', // let inner content div scroll
             }}
           >
-            {!isShortcutSurface && (
-              <WindowChrome
-                hasRightControls={hasRightControls}
-                hasRightControlsOpen={hasRightControlsOpen}
-                useLightTitleBar={useLightTitleBar}
-                rightControlsHeaderWidth={rightControlsHeaderWidth}
-                titleBarHeight={titleBarHeight}
-                activeAppKey={activeAppKey}
-                openAppControls={openAppControls}
-                isHybrid={isHybrid}
-                isWeb={isWeb}
-                activeWindowId={activeWindowId}
-                activeLabel={activeLabel}
-                windowTitleColor={windowTitleColor}
-                titleButtonIconColor={titleButtonIconColor}
-                primaryColor={primaryColor}
-                isMaximized={isMaximized}
-                onToggleAppControls={(appKey) => {
-                  setOpenAppControls((current) => ({
-                    ...current,
-                    [appKey]: !current[appKey],
-                  }))
-                }}
-                onMinimize={handleMinimizeWindow}
-                onMaximize={handleMaximizeWindow}
-                onClose={handleCloseWindow}
-              />
-            )}
+            {!isShortcutSurface && !hasPartialTitleBar && !(isSolidSlate && !activeAppKey) && renderWindowChrome()}
 
             {/* Window content — scrollable */}
-            <div id="client" className={isWeb ? 'web-native-content' : undefined} style={{ padding: '0', overflowY: 'auto', flex: 1 }}>
+            <div
+              id="client"
+              className={isWeb ? 'web-native-content' : undefined}
+              style={{
+                padding: '0',
+                overflowY: 'auto',
+                flex: 1,
+                minHeight: 0,
+                display: activeAppKey ? 'flex' : 'block',
+                flexDirection: 'column',
+              }}
+            >
               <NativeWindowContent isActive={activeWindowId === 'apps'} fillHeight={isAppsShortcutView}>
                 {isWeb ? (
                   <WebAppCards
@@ -535,27 +682,70 @@ const Dashboard: React.FC = () => {
                     isLandscape={isLandscape}
                   />
                 ) : isAppsShortcutView ? (
-                  <div
-                    style={{
-                      display: isLandscape && isDesktop ? 'flex' : 'grid',
-                      flexDirection: isLandscape && isDesktop ? 'column' : undefined,
-                      flexWrap: isLandscape && isDesktop ? 'wrap' : undefined,
-                      alignContent: isLandscape && isDesktop ? 'flex-start' : undefined,
-                      gridTemplateColumns: isLandscape
-                        ? isDesktop
+                  isSolidSlate ? (
+                    <div
+                      className="solid-slate-app-grid"
+                      style={{
+                        ['--solid-slate-icon' as string]: solidSlateIconColor,
+                        ['--solid-slate-label' as string]: solidSlateLabelColor,
+                        ['--solid-slate-tile-columns' as string]: isLandscape ? 'repeat(auto-fill, 88px)' : 'repeat(3, 88px)',
+                      }}
+                    >
+                      <div className="solid-slate-app-grid__inner">
+                        {launcherApps.map((app) => (
+                          <Button
+                            key={app.key}
+                            onClick={app.open}
+                            type="text"
+                            className="app-brick-btn app-brick-btn-solid-slate"
+                            style={{
+                              border: 'none',
+                              boxShadow: 'none',
+                              outline: 'none',
+                            }}
+                          >
+                            <div className="app-brick-btn-solid-slate__icon">
+                              {renderAppIcon(
+                                apps.find((entry) => entry.key === app.key)?.icon ?? '',
+                                solidSlateIconColor,
+                              )}
+                            </div>
+                            <div className="app-brick-label app-brick-btn-solid-slate__label" title={app.name}>
+                              {app.name}
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: isHybrid
+                          ? 'flex'
+                          : isLandscape && isDesktop
+                            ? 'flex'
+                            : 'grid',
+                        flexDirection: isHybrid || (isLandscape && isDesktop) ? 'column' : undefined,
+                        flexWrap: isHybrid || (isLandscape && isDesktop) ? 'wrap' : undefined,
+                        alignContent: isHybrid || (isLandscape && isDesktop) ? 'flex-start' : undefined,
+                        alignItems: isHybrid ? 'flex-start' : undefined,
+                        gridTemplateColumns: isHybrid
                           ? undefined
-                          : 'repeat(auto-fill, minmax(92px, 1fr))'
-                        : 'repeat(3, minmax(0, 1fr))',
-                      gap: '1rem 0.8rem',
-                      maxWidth: isLandscape && !isDesktop ? '780px' : '100%',
-                      height: isLandscape && isDesktop ? '100%' : undefined,
-                      overflowX: isLandscape && isDesktop ? 'auto' : undefined,
-                      overflowY: isLandscape && isDesktop ? 'hidden' : undefined,
-                    }}
-                  >
-                    {launcherApps.map((app) => {
-
-                      return (
+                          : isLandscape
+                            ? isDesktop
+                              ? undefined
+                              : 'repeat(auto-fill, minmax(92px, 1fr))'
+                            : 'repeat(3, minmax(0, 1fr))',
+                        gap: isHybrid ? '0.75rem' : '1rem 0.8rem',
+                        maxWidth: isHybrid ? '100%' : isLandscape && !isDesktop ? '780px' : '100%',
+                        height: isHybrid || (isLandscape && isDesktop) ? '100%' : undefined,
+                        overflowX: isHybrid || (isLandscape && isDesktop) ? 'auto' : undefined,
+                        overflowY: isHybrid ? 'hidden' : isLandscape && isDesktop ? 'hidden' : undefined,
+                        padding: isHybrid ? '1rem' : undefined,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {launcherApps.map((app) => (
                         <Button
                           key={app.key}
                           onClick={app.open}
@@ -609,9 +799,9 @@ const Dashboard: React.FC = () => {
                             {app.name}
                           </div>
                         </Button>
-                      )
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  )
                 ) : (
                   <>
                     <h2 style={{ margin: '0 0 0.3rem', fontSize: '1.1rem', fontWeight: 500, color: '#0f172a', letterSpacing: '-0.01em' }}>
@@ -696,7 +886,7 @@ const Dashboard: React.FC = () => {
                 ) : null}
               </NativeWindowContent>
 
-              <NativeWindowContent isActive={activeWindowId === 'terminal'}>
+              <NativeWindowContent isActive={activeWindowId === 'terminal'} fillHeight noPadding>
                 <TerminalView activeTheme={activeTheme} />
               </NativeWindowContent>
 
@@ -718,7 +908,7 @@ const Dashboard: React.FC = () => {
                   onLoginRequest={handleLoginRequest}
                   onChangeName={handleChangeName}
                   onResetPassword={handleResetPassword}
-                  onLogout={handleLogout}
+                  onLogoutRequest={handleLogoutRequest}
                   onOpenMembers={() => setActiveWindowId('members')}
                 />
               </NativeWindowContent>
@@ -735,16 +925,15 @@ const Dashboard: React.FC = () => {
 
                 <SystemSettingsPanel
                   isLandscape={isLandscape}
-                  isDashboard={isDashboard}
                   layoutMode={layoutMode}
-                  controlsSide={controlsSide}
+                  windowLayout={windowLayout}
                   activeTheme={activeTheme}
                   activeWallp={activeWallp}
                   primaryColor={primaryColor}
                   isAdmin={authUser?.role === 'Admin'}
                   authToken={authToken}
                   onLayoutModeChange={handleLayoutModeChange}
-                  onControlsSideChange={handleControlsSideChange}
+                  onWindowLayoutChange={handleWindowLayoutChange}
                   onColorPaletteChange={handleColorPaletteChange}
                   onWallpaperChange={handleWallpaperChange}
                   onDomainSetupComplete={() => handleLayoutModeChange('desktop')}
@@ -754,22 +943,32 @@ const Dashboard: React.FC = () => {
                 <div
                   key={app.key}
                   style={{
-                    display: activeWindowId === `app:${app.key}` ? 'block' : 'none',
+                    display: activeWindowId === `app:${app.key}` ? 'flex' : 'none',
+                    flexDirection: 'column',
                     width: '100%',
-                    height: '100%',
-                    minHeight: '420px',
+                    flex: 1,
+                    minHeight: 0,
                   }}
                 >
                   <AppWindow
-                    key={`${app.key}-${appSessionVersion}`}
+                    key={`${app.key}-${appSessionVersions[app.key] ?? 0}`}
                     appKey={app.key}
+                    appRoute={app.route ?? app.key}
                     appName={app.name}
+                    appIcon={renderAppIcon(app.icon)}
                     controlsOpen={Boolean(openAppControls[app.key])}
                     controlsSide={controlsSide}
+                    titleBarStyle={titleBarStyle}
                     controlsWidth={controlsPanelWidth}
                     titleBarHeight={titleBarHeight}
-                    transparentControls={isDesktop}
+                    transparentControls={isDesktop || isSolidSlate}
                     showControlsBorder={isDashboard}
+                    primaryColor={primaryColor}
+                    partialChrome={
+                      hasPartialTitleBar && activeWindowId === `app:${app.key}`
+                        ? renderWindowChrome(true)
+                        : undefined
+                    }
                   />
                 </div>
               ))}
@@ -782,10 +981,12 @@ const Dashboard: React.FC = () => {
           <DesktopTaskbar
             items={visibleMenuItems}
             accountSubmenuItems={accountSubmenuItems}
+            showAccountSubmenu={showAccountSubmenu}
             activeWindowId={activeWindowId}
             openedAccountsMenuArea={openedAccountsMenuArea}
             setOpenedAccountsMenuArea={setOpenedAccountsMenuArea}
             isSharp={isSharp}
+            isLandscape={isLandscape}
             isWindowMaximized={isWindowMaximized}
             primaryColor={primaryColor}
             secondaryColor={secondaryColor}
@@ -795,6 +996,7 @@ const Dashboard: React.FC = () => {
           />
         )}
       </div>
+      </MainContextMenu>
     </div>
   )
 }

@@ -63,6 +63,10 @@ export const useWindowManager = ({
     setIsMaximized((current) => !current)
   }, [])
 
+  const exitWindowMaximize = React.useCallback(() => {
+    setIsMaximized(false)
+  }, [])
+
   const handleWindowChange = React.useCallback((windowId: WindowId) => {
     if (windowId !== 'apps' && activeWindowId === windowId) {
       setAppsListReturnWindowId(windowId)
@@ -99,6 +103,11 @@ export const useWindowManager = ({
     setActiveWindowId(`app:${app.key}`)
   }, [])
 
+  const focusWindow = React.useCallback((windowId: WindowId) => {
+    setAppsListReturnWindowId(null)
+    setActiveWindowId(windowId)
+  }, [])
+
   const refreshAppSession = React.useCallback((appKey: string) => {
     setAppSessionVersions((current) => ({
       ...current,
@@ -116,6 +125,15 @@ export const useWindowManager = ({
     })
   }, [openApps])
 
+  const pauseAllOpenApps = React.useCallback(async (): Promise<void> => {
+    if (openApps.length === 0) {
+      return
+    }
+
+    const { App } = await import('../apps/App')
+    await Promise.allSettled(openApps.map((app) => new App(app.key).pause()))
+  }, [openApps])
+
   return {
     activeWindowId,
     openApps,
@@ -127,10 +145,13 @@ export const useWindowManager = ({
     handleCloseWindow,
     handleMinimizeWindow,
     handleMaximizeWindow,
+    exitWindowMaximize,
     handleWindowChange,
     handleAppOpen,
+    focusWindow,
     refreshAppSession,
     refreshAllAppSessions,
+    pauseAllOpenApps,
     setActiveWindowId,
   }
 }
