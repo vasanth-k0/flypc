@@ -218,17 +218,70 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  min-height: 320px;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  flex: 1 1 auto;
   padding: 2rem 1.5rem;
+  box-sizing: border-box;
   background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
 }
 
-.app-boot__title {
-  margin: 0;
+.app-boot--minimal {
+  gap: 0;
+}
+
+.app-boot__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-boot__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.75rem;
+  color: #597ef7;
+  border-radius: 14px;
+  background: rgba(89, 126, 247, 0.1);
+}
+
+.app-boot__name {
   font-size: 1rem;
   font-weight: 650;
   color: #0f172a;
   letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.app-boot--error {
+  gap: 0.65rem;
+  text-align: center;
+}
+
+.app-boot__error-icon {
+  font-size: 2.5rem;
+  color: #dc2626;
+}
+
+.app-boot__error-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #dc2626;
+  letter-spacing: -0.02em;
+}
+
+.app-boot__error-detail {
+  margin: 0;
+  max-width: 24rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #dc2626;
 }
 
 .app-boot__steps {
@@ -362,4 +415,151 @@
   color: #64748b;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   word-break: break-all;
+}
+
+/* Opaque control pane — subtle primary tint on white (dashboard, hybrid, sharp, desktop, solid-slate) */
+#controls.controls-pane--themed .control-pane {
+  background: var(--control-pane-surface, #fbfcfe) !important;
+}
+
+#controls.controls-pane--themed .control-pane__header,
+#controls.controls-pane--themed .control-pane__footer,
+#controls.controls-pane--themed .control-pane__tabs .ant-tabs-nav {
+  background: var(--control-pane-surface, #fbfcfe) !important;
+  backdrop-filter: none !important;
+}
+
+#controls.controls-pane--themed .control-pane__section {
+  background: color-mix(in srgb, var(--control-pane-surface, #fbfcfe) 52%, white) !important;
+}
+
+#controls.controls-pane--themed .control-pane__metric {
+  background: color-mix(in srgb, var(--control-pane-surface, #fbfcfe) 62%, white) !important;
+}
+
+/* Opaque collapsed strip — match pane surface, no blur (sharp, desktop) */
+#controls.controls-strip--partial-collapsed.controls-pane--themed {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+#controls.controls-strip--partial-collapsed.controls-pane--themed #title,
+#controls.controls-strip--partial-collapsed.controls-pane--themed #title > div {
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+#controls.controls-strip--partial-collapsed.controls-pane--themed:not(.controls-strip--partial-collapsed-themed) #btn-controls {
+  color: #334155 !important;
+}
+
+/* Partial layout — themed collapsed control strip (dashboard, dark, hybrid, solid-slate) */
+#controls.controls-strip--partial-collapsed-themed {
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+}
+
+.layout-dark #controls.controls-strip--partial-collapsed-themed {
+  background: var(--dark-title-bar, rgba(255, 255, 255, 0.06)) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Avoid double-stacked title bar + strip backgrounds when collapsed */
+#controls.controls-strip--partial-collapsed-themed #title,
+#controls.controls-strip--partial-collapsed-themed #title > div {
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+.layout-solid-slate #controls.controls-strip--partial-collapsed-themed {
+  background: var(--control-pane-surface, #fbfcfe) !important;
+}
+
+.layout-solid-slate #controls.controls-pane--themed {
+  background: var(--control-pane-surface, #fbfcfe) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Dark layout — control pane matches title bar surface */
+.layout-dark #controls {
+  background: var(--dark-title-bar, rgba(255, 255, 255, 0.06)) !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.layout-dark .control-pane {
+  background: var(--dark-title-bar, rgba(255, 255, 255, 0.06)) !important;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.layout-dark .control-pane__header,
+.layout-dark .control-pane__footer,
+.layout-dark .control-pane__tabs .ant-tabs-nav {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.layout-dark .control-pane__eyebrow,
+.layout-dark .control-pane__subtitle,
+.layout-dark .control-pane__section-title,
+.layout-dark .control-pane__metric-label,
+.layout-dark .control-pane__empty,
+.layout-dark .control-pane__markdown,
+.layout-dark .service-config__env-key {
+  color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.layout-dark .control-pane__title,
+.layout-dark .control-pane__metric-value,
+.layout-dark .control-pane__markdown h2,
+.layout-dark .control-pane__volume-row,
+.layout-dark .control-pane--guest {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.layout-dark .control-pane__section {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+}
+
+.layout-dark .control-pane__metric {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.layout-dark .control-pane__volume-row {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.layout-dark .control-pane .ant-tabs-tab-btn {
+  color: rgba(255, 255, 255, 0.68) !important;
+}
+
+.layout-dark .control-pane .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.layout-dark .control-pane .ant-tabs-ink-bar {
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.layout-dark .control-pane .ant-input,
+.layout-dark .control-pane .ant-input-number,
+.layout-dark .control-pane .ant-select-selector,
+.layout-dark .control-pane .ant-input-affix-wrapper {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.layout-dark .control-pane .ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.layout-dark .control-pane .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.72) !important;
 }

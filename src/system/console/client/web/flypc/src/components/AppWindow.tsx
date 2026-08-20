@@ -1,14 +1,20 @@
 import React from 'react'
+import { Spin } from 'antd'
+import { LoadingOutlined } from '@ant-design/icons'
 import { AppControlPane } from './AppControlPane'
 import { AppBootChecklist } from './AppBootChecklist'
+import { AppBootError } from './AppBootError'
 import { bindIframeContextMenuBridge } from '../utils/iframeContextMenuBridge'
 import { useAppBoot } from '../hooks/useAppBoot'
+import './control-pane.css'
 
 import type { ControlsSide, TitleBarStyle } from '../utils/windowLayout'
 
 type AppWindowProps = {
   appKey: string
+  appRoute: string
   appName: string
+  appIcon?: React.ReactNode
   controlsOpen: boolean
   controlsSide: ControlsSide
   titleBarStyle: TitleBarStyle
@@ -17,6 +23,9 @@ type AppWindowProps = {
   transparentControls: boolean
   showControlsBorder: boolean
   primaryColor: string
+  collapsedStripBackground?: string
+  controlsBackground?: string
+  themedCollapsedControlStrip?: boolean
   partialChrome?: React.ReactNode
 }
 
@@ -24,7 +33,9 @@ const COLLAPSED_CONTROLS_STRIP = '2.5rem'
 
 export const AppWindow: React.FC<AppWindowProps> = ({
   appKey,
+  appRoute,
   appName,
+  appIcon,
   controlsOpen,
   controlsSide,
   titleBarStyle,
@@ -32,12 +43,14 @@ export const AppWindow: React.FC<AppWindowProps> = ({
   titleBarHeight,
   transparentControls,
   showControlsBorder,
-  primaryColor,
+  collapsedStripBackground = 'transparent',
+  controlsBackground,
+  themedCollapsedControlStrip = false,
   partialChrome,
 }) => {
   const appRef = React.useRef<{ pause: () => Promise<unknown> } | null>(null)
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
-  const { loading, error, runtime, steps, failed } = useAppBoot(appKey)
+  const { loading, error, runtime, steps } = useAppBoot(appKey, appRoute)
 
   React.useEffect(() => {
     appRef.current = {
@@ -70,7 +83,9 @@ export const AppWindow: React.FC<AppWindowProps> = ({
   const activePanelWidth = controlsOpen ? controlsWidth : COLLAPSED_CONTROLS_STRIP
 
   const partialTitlePadding = isPartialTitle && !partialChrome ? titleBarHeight : '0'
-  const stripBackground = showCollapsedStrip ? primaryColor : transparentControls ? 'transparent' : '#ffffff'
+  const themedControlPane = Boolean(controlsBackground && controlsBackground !== 'transparent')
+  const opaquePaneBackground = controlsBackground ?? (transparentControls ? 'transparent' : '#ffffff')
+  const stripBackground = showCollapsedStrip ? collapsedStripBackground : transparentControls ? 'transparent' : opaquePaneBackground
 
   const useFlexLayout = isPartialTitle
   let panelWidth = controlsWidth
@@ -90,33 +105,13 @@ export const AppWindow: React.FC<AppWindowProps> = ({
     panelTransform = controlsOpen ? 'translateX(0)' : 'translateX(-100%)'
   }
 
-  const appContent = loading && steps.length > 0 ? (
-    <AppBootChecklist appName={appName} steps={steps} failed={failed} />
+  const appContent = error ? (
+    <AppBootError appName={appName} message={error} />
+  ) : loading && steps.length > 0 ? (
+    <AppBootChecklist appName={appName} appIcon={appIcon} steps={steps} />
   ) : loading ? (
-    <div
-      style={{
-        display: 'grid',
-        placeItems: 'center',
-        minHeight: '240px',
-        color: '#64748b',
-        fontSize: '0.92rem',
-      }}
-    >
-      Starting {appName}...
-    </div>
-  ) : error ? (
-    <div
-      style={{
-        padding: '1rem',
-        color: '#b42318',
-        background: '#fef3f2',
-        border: '1px solid #fecdca',
-        borderRadius: '10px',
-        fontSize: '0.92rem',
-        lineHeight: 1.5,
-      }}
-    >
-      Unable to start {appName}. {error}
+    <div className="app-boot app-boot--minimal">
+      <Spin indicator={<LoadingOutlined spin />} size="large" />
     </div>
   ) : !runtime?.url ? (
     <div
@@ -171,11 +166,12 @@ export const AppWindow: React.FC<AppWindowProps> = ({
     transform: panelTransform,
     transition: 'width 260ms ease, min-width 260ms ease, max-width 260ms ease, flex-basis 260ms ease, transform 260ms ease',
     background: controlsOpen
-      ? transparentControls
-        ? 'transparent'
-        : '#ffffff'
+      ? opaquePaneBackground
       : stripBackground,
-    backdropFilter: transparentControls && controlsOpen ? 'none' : controlsOpen ? 'blur(18px)' : 'none',
+    backdropFilter:
+      controlsOpen && !transparentControls
+        ? 'blur(18px)'
+        : 'none',
     borderLeft: showControlsBorder && controlsSide === 'right' ? '1px solid rgba(15, 23, 42, 0.12)' : 'none',
     borderRight: showControlsBorder && controlsSide === 'left' ? '1px solid rgba(15, 23, 42, 0.12)' : 'none',
     boxSizing: 'border-box',
@@ -188,6 +184,9 @@ export const AppWindow: React.FC<AppWindowProps> = ({
   const contentStyle: React.CSSProperties = {
     flex: useFlexLayout ? '1 1 auto' : undefined,
     minWidth: useFlexLayout ? 0 : undefined,
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
     order: isRightPanel ? 0 : 1,
   }
 
@@ -202,7 +201,21 @@ export const AppWindow: React.FC<AppWindowProps> = ({
           overflow: 'hidden',
         }}
       >
-        <aside id="controls" aria-hidden={!controlsOpen && !showCollapsedStrip} style={asideStyle}>
+        <aside
+          id="controls"
+          className={[
+            showCollapsedStrip ? 'controls-strip--partial-collapsed' : '',
+            showCollapsedStrip && themedCollapsedControlStrip ? 'controls-strip--partial-collapsed-themed' : '',
+            themedControlPane ? 'controls-pane--themed' : '',
+          ].filter(Boolean).join(' ') || undefined}
+          aria-hidden={!controlsOpen && !showCollapsedStrip}
+          style={{
+            ...asideStyle,
+            ...(themedControlPane
+              ? { ['--control-pane-surface' as string]: controlsBackground }
+              : {}),
+          }}
+        >
           {partialChrome}
           {controlsOpen ? (
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -221,6 +234,7 @@ export const AppWindow: React.FC<AppWindowProps> = ({
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <aside
         id="controls"
+        className={themedControlPane ? 'controls-pane--themed' : undefined}
         aria-hidden={!controlsOpen && !panelOffScreen}
         style={{
           position: 'absolute',
@@ -228,6 +242,9 @@ export const AppWindow: React.FC<AppWindowProps> = ({
           bottom: 0,
           [controlsSide]: 0,
           ...asideStyle,
+          ...(themedControlPane
+            ? { ['--control-pane-surface' as string]: controlsBackground }
+            : {}),
           zIndex: 3,
         }}
       >
@@ -249,6 +266,8 @@ export const AppWindow: React.FC<AppWindowProps> = ({
               : '100%',
           transition: 'left 260ms ease, width 260ms ease',
           zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         {appContent}

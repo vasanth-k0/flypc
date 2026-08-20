@@ -17,6 +17,21 @@ describe('ColorPalette', () => {
     expect(ColorPalette.secondary).toBe('#ffffff')
   })
 
+  it('configures white + colored palettes', () => {
+    ColorPalette.configure('White • Moss')
+
+    expect(ColorPalette.primary).toBe('#efefef')
+    expect(ColorPalette.secondary).toBe('#879f77')
+  })
+
+  it('detects light primary themes for on-primary text color', () => {
+    expect(ColorPalette.isLightPrimaryTheme('White')).toBe(true)
+    expect(ColorPalette.isLightPrimaryTheme('White • Blush')).toBe(true)
+    expect(ColorPalette.isLightPrimaryTheme('Moss • Mist')).toBe(false)
+    expect(ColorPalette.onPrimaryTextColor('White • Sage')).toBe('#000000')
+    expect(ColorPalette.onPrimaryTextColor('Geekblue')).toBe('#ffffff')
+  })
+
   it('falls back to Geekblue when configured with an invalid theme', () => {
     ColorPalette.configure('InvalidTheme' as unknown as keyof typeof ColorPalette.options)
 

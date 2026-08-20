@@ -59,17 +59,64 @@
 .web-native-content span,
 .web-native-content th,
 .web-native-content td {
-  color: #ffffff !important;
+  color: #1a1a1a !important;
 }
 
 .web-native-content [class*='anticon'] {
-  color: #ffffff !important;
+  color: #334155 !important;
 }
 
 .web-native-content input {
-  color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.38) !important;
+  color: #1a1a1a !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+}
+
+.web-app-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.85rem;
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding-bottom: 0.5rem;
+}
+
+.web-app-cards__item {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.layout-web #title {
+  background: transparent !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+}
+
+.layout-web #title > div {
+  background: transparent !important;
+}
+
+.layout-web #controls {
+  background: transparent !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+}
+
+.layout-web .control-pane {
+  background: transparent !important;
+}
+
+.layout-web .control-pane__header,
+.layout-web .control-pane__footer,
+.layout-web .control-pane__tabs .ant-tabs-nav {
+  background: transparent !important;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .console-panel {
@@ -283,7 +330,7 @@
 
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--scrollbar-color-hover, var(--scrollbar-color, #888));
 }
 
 /* Keep app launcher bricks/cards visually stable while using Ant Button wrappers. */
@@ -670,14 +717,25 @@
   background: var(--solid-slate-backdrop, linear-gradient(180deg, #24356f 0%, #1a2744 100%));
 }
 
-.layout-solid-slate #window {
+.layout-solid-slate #window:not(.window-maximized) {
+  margin: 10px;
+  border-radius: 8px;
+  width: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-shadow: none;
+  background: var(--solid-slate-backdrop, linear-gradient(180deg, #24356f 0%, #1a2744 100%)) !important;
+  backdrop-filter: none !important;
+}
+
+.layout-solid-slate #window.window-maximized {
   box-shadow: none;
   background: var(--solid-slate-backdrop, linear-gradient(180deg, #24356f 0%, #1a2744 100%)) !important;
   backdrop-filter: none !important;
 }
 
 .layout-solid-slate #title {
-  background: var(--solid-slate-topbar, linear-gradient(180deg, #24356f 0%, #1a2744 100%)) !important;
+  background: var(--solid-slate-topbar, #24356f) !important;
   opacity: 1 !important;
   border-bottom: none;
 }
@@ -694,7 +752,7 @@
   align-items: center;
   padding: 0.75rem 0.85rem;
   box-sizing: border-box;
-  background: var(--solid-slate-topbar, linear-gradient(180deg, #24356f 0%, #1a2744 100%));
+  background: transparent;
   border: none;
   z-index: 10;
   flex-shrink: 0;
@@ -974,6 +1032,276 @@
   box-shadow: none;
 }
 
+/* Dark layout — floating dock + dark mac-style window */
+.layout-dark {
+  flex-direction: column !important;
+  box-sizing: border-box;
+}
+
+.layout-dark > main {
+  min-height: 0;
+  flex: 1;
+}
+
+.layout-dark #window:not(.window-maximized):not(.dark-window-app-list) {
+  background: var(--dark-surface, rgba(22, 24, 28, 0.88)) !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  border: 5px solid rgb(54, 55, 56) !important;
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.15),
+    0 10px 20px rgba(0, 0, 0, 0.1),
+    inset 0 1px 1px rgba(255, 255, 255, 0.06) !important;
+  animation: darkWindowAppear 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.layout-dark #window.dark-window-app-list:not(.window-maximized) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  animation: none;
+}
+
+.layout-dark #menubar.dark-dock {
+  width: fit-content !important;
+  max-width: min(520px, calc(100vw - 64px)) !important;
+  min-width: 0;
+  background: var(--dark-surface, rgba(22, 24, 28, 0.88)) !important;
+  border: 1px solid var(--dark-surface-border, rgba(255, 255, 255, 0.12)) !important;
+  border-radius: 999px !important;
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.15),
+    0 10px 20px rgba(0, 0, 0, 0.1),
+    inset 0 1px 1px rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  opacity: 1 !important;
+}
+
+@keyframes darkWindowAppear {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.layout-dark #title {
+  background: var(--dark-title-bar, rgba(255, 255, 255, 0.06)) !important;
+  opacity: 1 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.layout-dark #title > div {
+  background: transparent !important;
+}
+
+.layout-dark #title #btn-min,
+.layout-dark #title #btn-full,
+.layout-dark #title #btn-close,
+.layout-dark #title #btn-controls {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: var(--dark-primary, #597ef7) !important;
+  border: none !important;
+  box-shadow: none !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #ffffff !important;
+}
+
+.layout-dark #title #btn-min .anticon,
+.layout-dark #title #btn-full .anticon,
+.layout-dark #title #btn-close .anticon,
+.layout-dark #title #btn-controls .anticon,
+.layout-dark #title #btn-min svg,
+.layout-dark #title #btn-full svg,
+.layout-dark #title #btn-close svg,
+.layout-dark #title #btn-controls svg {
+  font-size: 11px !important;
+  width: 11px !important;
+  height: 11px !important;
+  color: inherit !important;
+}
+
+.layout-dark #title #btn-min:hover,
+.layout-dark #title #btn-full:hover,
+.layout-dark #title #btn-close:hover,
+.layout-dark #title #btn-controls:hover {
+  filter: brightness(1.08);
+}
+
+.layout-dark.layout-dark--white #title #btn-min,
+.layout-dark.layout-dark--white #title #btn-full,
+.layout-dark.layout-dark--white #title #btn-close,
+.layout-dark.layout-dark--white #title #btn-controls {
+  color: var(--dark-icon, #1a1a1a) !important;
+}
+
+.layout-dark.layout-dark--white .app-brick-btn-dark__icon,
+.layout-dark.layout-dark--white .app-brick-btn-dark > span > div:first-child,
+.layout-dark.layout-dark--white .app-brick-btn-dark__icon .anticon,
+.layout-dark.layout-dark--white .app-brick-btn-dark__icon svg,
+.layout-dark.layout-dark--white .app-brick-btn-dark > span > div:first-child .anticon,
+.layout-dark.layout-dark--white .app-brick-btn-dark > span > div:first-child svg {
+  color: var(--dark-icon, #1a1a1a) !important;
+}
+
+.layout-dark .dark-window-content {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.layout-dark .dark-window-content h1,
+.layout-dark .dark-window-content h2,
+.layout-dark .dark-window-content h3,
+.layout-dark .dark-window-content h4,
+.layout-dark .dark-window-content p,
+.layout-dark .dark-window-content label,
+.layout-dark .dark-window-content span,
+.layout-dark .dark-window-content .ant-typography,
+.layout-dark .dark-window-content .ant-tabs-tab-btn {
+  color: inherit;
+}
+
+.layout-dark .dark-window-content .ant-typography-secondary,
+.layout-dark .dark-window-content p[style*='#64748b'],
+.layout-dark .dark-window-content h3[style*='#94a3b8'] {
+  color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.layout-dark .dark-window-content .app-card-btn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.layout-dark .dark-window-content .app-card-label,
+.layout-dark .dark-window-content .app-card-btn div {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.layout-dark .dark-window-content .ant-input,
+.layout-dark .dark-window-content .ant-select-selector,
+.layout-dark .dark-window-content .ant-btn-default,
+.layout-dark .dark-window-content .ant-btn-text {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.layout-dark .dark-dock-btn {
+  position: relative;
+  border-radius: 50% !important;
+  overflow: hidden;
+}
+
+.layout-dark .dark-dock-btn:not(.dark-dock-btn--active):hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+
+.layout-dark .dark-dock-btn--active,
+.layout-dark .dark-dock-btn--active:hover {
+  transform: none !important;
+}
+
+.layout-dark .dark-dock-btn--active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 3px;
+  background: var(--dark-primary, #597ef7);
+  border-radius: 2px;
+  box-shadow: 0 0 10px var(--dark-primary, #597ef7);
+}
+
+.layout-dark .app-brick-btn-dark.ant-btn,
+.layout-dark .app-brick-btn-dark.ant-btn:hover,
+.layout-dark .app-brick-btn-dark.ant-btn:focus,
+.layout-dark .app-brick-btn-dark.ant-btn:focus-visible,
+.layout-dark .app-brick-btn-dark.ant-btn:active,
+.layout-dark .app-brick-btn-dark.ant-btn-variant-text:not(:disabled):not(.ant-btn-disabled):hover,
+.layout-dark .app-brick-btn-dark.ant-btn-variant-text:not(:disabled):not(.ant-btn-disabled):focus,
+.layout-dark .app-brick-btn-dark.ant-btn-variant-text:not(:disabled):not(.ant-btn-disabled):focus-visible,
+.layout-dark .app-brick-btn-dark.ant-btn-variant-text:not(:disabled):not(.ant-btn-disabled):active {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  padding: 0.25rem;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.layout-dark .app-brick-btn-dark.ant-btn > span {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.layout-dark .app-brick-btn-dark .app-brick-label {
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  font-size: 0.72rem;
+}
+
+.layout-dark .app-brick-btn-dark__icon,
+.layout-dark .app-brick-btn-dark > span > div:first-child {
+  width: 65px !important;
+  height: 65px !important;
+  background: var(--dark-primary, #597ef7) !important;
+  border: 7px solid #1a1a1a85 !important;
+  border-radius: 50% !important;
+  color: var(--dark-icon, #ffffff) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  font-size: 1.25rem !important;
+  display: grid !important;
+  place-items: center !important;
+  flex-shrink: 0;
+}
+
+.layout-dark .app-brick-btn-dark:hover .app-brick-btn-dark__icon,
+.layout-dark .app-brick-btn-dark:focus .app-brick-btn-dark__icon,
+.layout-dark .app-brick-btn-dark:focus-visible .app-brick-btn-dark__icon,
+.layout-dark .app-brick-btn-dark:active .app-brick-btn-dark__icon,
+.layout-dark .app-brick-btn-dark:hover > span > div:first-child,
+.layout-dark .app-brick-btn-dark:focus > span > div:first-child,
+.layout-dark .app-brick-btn-dark:focus-visible > span > div:first-child,
+.layout-dark .app-brick-btn-dark:active > span > div:first-child {
+  background: var(--dark-primary, #597ef7) !important;
+  border: 7px solid #1a1a1a85 !important;
+  border-color: #1a1a1a85 !important;
+  box-shadow: none !important;
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.layout-dark .app-brick-btn-dark__icon .anticon,
+.layout-dark .app-brick-btn-dark__icon svg,
+.layout-dark .app-brick-btn-dark > span > div:first-child .anticon,
+.layout-dark .app-brick-btn-dark > span > div:first-child svg {
+  font-size: 1.25rem !important;
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+}
+
 /* Toast messages — top-right container, left-aligned text, snappy motion */
 .ant-message.ant-message-top {
   inset: 12px 16px auto auto !important;
@@ -981,19 +1309,34 @@
   right: 16px !important;
   transform: none !important;
   margin-inline: 0 !important;
-  width: auto;
+  width: max-content !important;
   max-width: min(360px, calc(100vw - 32px));
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  z-index: 4000 !important;
+  pointer-events: none;
+}
+
+.ant-message.ant-message-top .ant-message-list-content {
+  overflow: visible !important;
+  max-height: none !important;
+  padding: 0 !important;
 }
 
 .ant-message.ant-message-top .ant-message-notice {
   left: auto !important;
   right: 0 !important;
   transform: none !important;
+  clip-path: none !important;
+  overflow: visible !important;
+  pointer-events: auto;
 }
 
 .ant-message-notice-content {
   text-align: left;
   justify-content: flex-start;
+  overflow: visible !important;
 }
 
 .ant-message.ant-message-top .ant-message-notice[class*='fade-enter-start'],

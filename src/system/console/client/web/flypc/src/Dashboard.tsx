@@ -28,6 +28,7 @@ import { useFullscreenWindowSwitcher } from './hooks/useFullscreenWindowSwitcher
 import { useLayoutContext } from './hooks/useLayoutContext'
 import { renderAppIcon, withMenuIconColor } from './utils/menuIcons'
 import { DESKTOP_WINDOW_MAX_WIDTH_PX } from './utils/windowLayout'
+import { reloadPage } from './utils/reloadPage'
 import type { WindowId } from './types/dashboard'
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 
@@ -206,10 +207,12 @@ const Dashboard: React.FC = () => {
     isSharp,
     isWeb,
     isSolidSlate,
+    isDark,
     sidebarOnRight,
     isAppsShortcutView,
     isShortcutSurface,
     desktopWindowHeight,
+    desktopTaskbarHeightPx,
     isWindowMaximized,
     activeAppKey,
     controlsSide,
@@ -220,6 +223,11 @@ const Dashboard: React.FC = () => {
     controlsPanelWidth,
     partialControlsHeaderWidth,
     titleBarHeight,
+    partialTitleBarBackground,
+    collapsedControlStripBackground,
+    useThemedCollapsedControlStrip,
+    webChromeSurface,
+    controlPaneSurface,
     primaryColor,
     secondaryColor,
     isWhitePalette,
@@ -238,6 +246,7 @@ const Dashboard: React.FC = () => {
     solidSlateTopBarColor,
     solidSlateBackdropColor,
     solidSlateLabelColor,
+    darkIconColor,
   } = layout
 
   React.useEffect(() => {
@@ -265,7 +274,7 @@ const Dashboard: React.FC = () => {
       activeLabel={activeLabel}
       windowTitleColor={windowTitleColor}
       titleButtonIconColor={titleButtonIconColor}
-      primaryColor={primaryColor}
+      titleBarBackground={partialTitleBarBackground}
       isMaximized={isMaximized}
       onToggleAppControls={(appKey) => {
         setOpenAppControls((current) => ({
@@ -423,20 +432,27 @@ const Dashboard: React.FC = () => {
       {/* Main Layout Area */}
       <MainContextMenu
         isLoggedIn={Boolean(authUser)}
-        isAdmin={authUser?.role === 'Admin'}
         onLogin={() => setActiveWindowId('accounts')}
         onLogout={handleLogoutRequest}
         onRandomWallpaper={handleRandomWallpaper}
         onRandomLayout={handleRandomLayout}
         onRandomColorPalette={handleRandomColorPalette}
         onEnterPageFullscreen={exitWindowMaximize}
+        onReload={async () => {
+          await pauseAllOpenApps()
+          await reloadPage()
+        }}
       >
       <div
         id="dash"
         className={
           isSolidSlate
             ? `layout-solid-slate${isWhitePalette ? ' layout-solid-slate--white' : ''}`
-            : isHybrid
+            : isDark
+              ? `layout-dark${isWhitePalette ? ' layout-dark--white' : ''}`
+              : isWeb
+                ? 'layout-web'
+              : isHybrid
               ? [
                   'layout-hybrid-console',
                   !isAppsShortcutView ? 'layout-hybrid-console--joined' : '',
@@ -452,13 +468,26 @@ const Dashboard: React.FC = () => {
                 ['--solid-slate-icon' as string]: solidSlateIconColor,
                 ['--solid-slate-backdrop' as string]: solidSlateBackdropColor,
                 ['--solid-slate-label' as string]: solidSlateLabelColor,
+                ['--control-pane-surface' as string]: controlPaneSurface,
               }
-            : {}),
+            : isDark
+              ? {
+                  ['--dark-primary' as string]: primaryColor,
+                  ['--dark-icon' as string]: darkIconColor,
+                  ['--dark-title-bar' as string]: 'rgba(255, 255, 255, 0.06)',
+                  ['--dark-surface' as string]: 'rgba(22, 24, 28, 0.88)',
+                  ['--dark-surface-border' as string]: 'rgba(255, 255, 255, 0.12)',
+                }
+              : isWeb
+                ? {
+                    ['--web-chrome-surface' as string]: webChromeSurface,
+                  }
+              : {}),
           display: 'flex',
           flex: 1,
           flexDirection: isSolidSlate
             ? 'column'
-            : isDesktop || isWeb
+            : isDesktop || isWeb || isDark
               ? 'column'
               : (isDashboard || isHybrid)
                 ? (isLandscape ? 'row' : 'row-reverse')
@@ -473,9 +502,11 @@ const Dashboard: React.FC = () => {
           margin: isDashboard ? '0 10px 10px' : '0',
           padding: isHybrid
             ? isLandscape
-              ? '10px'
-              : '7px'
+              ? '13px'
+              : '10px'
             : isSharp
+              ? 'clamp(1rem, 4vw, 3rem) clamp(1rem, 6vw, 5rem) calc(clamp(1rem, 3.5vw, 2.5rem) + 40px)'
+              : isDark
               ? 'clamp(1rem, 4vw, 3rem) clamp(1rem, 6vw, 5rem) clamp(5.75rem, 9vw, 7rem)'
               : '0',
         }}
@@ -539,7 +570,6 @@ const Dashboard: React.FC = () => {
             iconColor={solidSlateIconColor}
             labelColor={solidSlateLabelColor}
             isWhitePalette={isWhitePalette}
-            topBarColor={solidSlateTopBarColor}
             sidebarMenuItems={sidebarMenuItems}
             accountSubmenuItems={accountSubmenuItems}
             showAccountSubmenu={showAccountSubmenu}
@@ -579,67 +609,95 @@ const Dashboard: React.FC = () => {
             flex: 1,
             width: '100%',
             height: '100%',
-            padding: isDashboard || isHybrid || isWeb || isSolidSlate || isWindowMaximized || isShortcutSurface || isSharp ? '0' : '0.5rem',
+            padding: isDashboard || isHybrid || isWeb || isSolidSlate || isDark || isWindowMaximized || isShortcutSurface || isSharp || isDesktop ? '0' : '0.5rem',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: isDashboard || isHybrid || isWeb || isSolidSlate || isWindowMaximized || isShortcutSurface || isSharp ? 'stretch' : 'center',
-            justifyContent: 'flex-start',
+            alignItems: isDashboard || isHybrid || isWeb || isSolidSlate || isDark || isWindowMaximized || isShortcutSurface || isSharp ? 'stretch' : 'center',
+            justifyContent: isDesktop && !isWindowMaximized ? 'center' : 'flex-start',
+            paddingBottom: isDesktop && !isWindowMaximized ? `${desktopTaskbarHeightPx}px` : undefined,
             boxSizing: 'border-box',
             boxShadow: 'none',
             visibility: shouldHideDashboardWindowArea ? 'hidden' : 'visible',
           }}
         >
           {isWeb && !isWindowMaximized && (
-            <div style={{ width: '100%', alignSelf: 'flex-start', boxSizing: 'border-box', padding: '2.25rem 3rem 1.25rem', color: '#ffffffa0', fontSize: 'clamp(0.9rem, 1.6875vw, 1.6875rem)', fontWeight: 500, letterSpacing: '-0.04em', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <span style={{ display: 'grid', placeItems: 'center', fontSize: '1.125em', filter: 'brightness(0) invert(1)' }}>{activeWindowIcon}</span>
+            <div style={{ width: '100%', alignSelf: 'flex-start', boxSizing: 'border-box', padding: '2.25rem 3rem 1.25rem', color: 'rgba(26, 26, 26, 0.82)', fontSize: 'clamp(0.9rem, 1.6875vw, 1.6875rem)', fontWeight: 500, letterSpacing: '-0.04em', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <span style={{ display: 'grid', placeItems: 'center', fontSize: '1.125em', color: '#334155' }}>{activeWindowIcon}</span>
               <span>{activeLabel}</span>
             </div>
           )}
           <div
             id="window"
-            className={isWindowMaximized ? 'window-maximized' : undefined}
+            className={[
+              isWindowMaximized ? 'window-maximized' : '',
+              isDark && isAppsShortcutView ? 'dark-window-app-list' : '',
+            ].filter(Boolean).join(' ') || undefined}
             onDoubleClick={toggleDesktopFullscreen}
             style={{
               position: isWindowMaximized ? 'fixed' : 'relative',
               inset: isWindowMaximized ? 0 : undefined,
-              width: isShortcutSurface ? '100%' : isWindowMaximized ? '100vw' : isWeb ? isLandscape ? '95%' : '97%' : isDashboard || isHybrid || isSolidSlate || isSharp ? '100%' : `min(100%, ${DESKTOP_WINDOW_MAX_WIDTH_PX}px)`,
+              width: isShortcutSurface
+                ? '100%'
+                : isWindowMaximized
+                  ? '100vw'
+                  : isSolidSlate
+                    ? 'auto'
+                    : isWeb
+                      ? isLandscape
+                        ? '95%'
+                        : '97%'
+                      : isDashboard || isHybrid || isSharp || isDark
+                        ? '100%'
+                        : `min(100%, ${DESKTOP_WINDOW_MAX_WIDTH_PX}px)`,
               height: isShortcutSurface
                 ? '100%'
                 : isWindowMaximized
                   ? '100vh'
-                  : isWeb
-                    ? 'calc(100% - 7.75rem)'
-                    : isSharp
-                      ? '105%'
-                      : isDashboard || isHybrid || isSolidSlate
+                  : isSolidSlate
+                    ? undefined
+                    : isWeb
+                      ? 'calc(100% - 7.75rem)'
+                      : isSharp
                         ? '100%'
-                        : desktopWindowHeight,
-              maxWidth: isShortcutSurface || isDashboard || isHybrid || isWeb || isSolidSlate || isSharp || isWindowMaximized ? 'none' : `${DESKTOP_WINDOW_MAX_WIDTH_PX}px`,
-              alignSelf: isWeb || isDesktop ? 'center' : isShortcutSurface || isDashboard || isHybrid || isSolidSlate || isSharp || isWindowMaximized ? 'stretch' : 'stretch',
+                        : isDark
+                          ? 'calc(100% + 10px)'
+                          : isDashboard || isHybrid
+                            ? '100%'
+                            : desktopWindowHeight,
+              flex: isSolidSlate && !isWindowMaximized ? 1 : undefined,
+              minHeight: isSolidSlate && !isWindowMaximized ? 0 : undefined,
+              maxWidth: isShortcutSurface || isDashboard || isHybrid || isWeb || isSolidSlate || isSharp || isDark || isWindowMaximized ? 'none' : `${DESKTOP_WINDOW_MAX_WIDTH_PX}px`,
+              alignSelf: isWeb || isDesktop ? 'center' : isShortcutSurface || isDashboard || isHybrid || isSolidSlate || isSharp || isDark || isWindowMaximized ? 'stretch' : 'stretch',
               background: isShortcutSurface
                 ? 'transparent'
                 : isDashboard
                   ? '#ffffff'
                   : isWeb
-                    ? '#ffffff03'
+                    ? 'transparent'
                     : isSolidSlate
                       ? solidSlateBackdropColor
+                      : isDark
+                        ? undefined
                       : isSharp
                         ? 'rgba(255, 255, 255, 0.19)'
                         : 'rgba(255, 255, 255, 0.18)',
-              backdropFilter: isShortcutSurface ? 'none' : isWeb ? 'blur(3px)' : isSolidSlate ? 'none' : 'blur(24px)',
+              backdropFilter: isShortcutSurface ? 'none' : isWeb ? 'none' : isSolidSlate || isDark ? undefined : 'blur(24px)',
               borderRadius: isWindowMaximized
                 ? '0'
-                : isHybrid
-                  ? undefined
-                  : isWeb
-                    ? '10px'
-                    : isShortcutSurface || isDashboard || isSolidSlate || isSharp
-                      ? '0'
-                      : '5px',
+                : isSolidSlate
+                  ? '8px'
+                  : isHybrid
+                    ? undefined
+                    : isWeb
+                      ? '10px'
+                      : isShortcutSurface || isDashboard || isSharp
+                        ? '0'
+                        : isDark
+                          ? '18px'
+                          : '5px',
               padding: '0',
-              margin: isWeb && !isWindowMaximized ? '0 auto 1rem' : undefined,
+              margin: isSolidSlate && !isWindowMaximized ? '10px' : isWeb && !isWindowMaximized ? '0 auto 1rem' : undefined,
               boxShadow: isShortcutSurface
                 ? 'none'
                 : isWindowMaximized
@@ -650,13 +708,19 @@ const Dashboard: React.FC = () => {
                     ? '0 2px 16px rgba(0,0,0,0.06)'
                     : isSharp
                       ? '0 16px 40px rgba(15, 23, 42, 0.15)'
+                      : isWeb
+                        ? activeWindowId === 'apps'
+                          ? 'none'
+                          : '0 8px 32px rgba(15, 23, 42, 0.1)'
+                      : isDark
+                        ? undefined
                       : '0 16px 40px rgba(0, 0, 0, 0.18)',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
               zIndex: isWindowMaximized ? 1000 : undefined,
               transition: 'all 0.3s ease',
-              color: '#0f172a',
+              color: isDark ? 'rgba(255, 255, 255, 0.92)' : '#0f172a',
               overflow: 'hidden', // let inner content div scroll
             }}
           >
@@ -665,7 +729,7 @@ const Dashboard: React.FC = () => {
             {/* Window content — scrollable */}
             <div
               id="client"
-              className={isWeb ? 'web-native-content' : undefined}
+              className={isWeb ? 'web-native-content' : isDark ? 'dark-window-content' : undefined}
               style={{
                 padding: '0',
                 overflowY: 'auto',
@@ -675,11 +739,10 @@ const Dashboard: React.FC = () => {
                 flexDirection: 'column',
               }}
             >
-              <NativeWindowContent isActive={activeWindowId === 'apps'} fillHeight={isAppsShortcutView}>
+              <NativeWindowContent isActive={activeWindowId === 'apps'} fillHeight={isAppsShortcutView || isWeb}>
                 {isWeb ? (
                   <WebAppCards
                     apps={launcherApps.map((app) => ({ key: app.key, name: app.name, description: app.description, icon: app.iconNode, onOpen: app.open }))}
-                    isLandscape={isLandscape}
                   />
                 ) : isAppsShortcutView ? (
                   isSolidSlate ? (
@@ -750,11 +813,23 @@ const Dashboard: React.FC = () => {
                           key={app.key}
                           onClick={app.open}
                           type="text"
-                          className={isHybrid ? 'app-brick-btn app-brick-btn-hybrid' : 'app-brick-btn app-brick-btn-desktop'}
+                          className={isHybrid ? 'app-brick-btn app-brick-btn-hybrid' : isDark ? 'app-brick-btn app-brick-btn-dark' : 'app-brick-btn app-brick-btn-desktop'}
                           style={
                             isHybrid
                               ? hybridAppbrick
-                              : {
+                              : isDark
+                                ? {
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.25rem',
+                                  borderRadius: '10px',
+                                }
+                                : {
                                 border: 'none',
                                 background: 'transparent',
                                 cursor: 'pointer',
@@ -768,25 +843,43 @@ const Dashboard: React.FC = () => {
                           }
                         >
                           <div
-                            style={{
-                              width: isHybrid ? '26px' : '56px',
-                              height: isHybrid ? '26px' : '56px',
-                              borderRadius: isHybrid ? '0' : '14px',
-                              background: isHybrid ? 'transparent' : 'rgba(255,255,255,0.35)',
-                              border: isHybrid ? 'none' : '1px solid rgba(255,255,255,0.25)',
-                              color: '#334155',
-                              display: 'grid',
-                              placeItems: 'center',
-                              fontSize: isHybrid ? 'calc(1rem + 2px)' : '1.45rem',
-                              backdropFilter: isHybrid ? 'none' : 'blur(3px)',
-                            }}
+                            className={isDark ? 'app-brick-btn-dark__icon' : undefined}
+                            style={
+                              isHybrid
+                                ? {
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '0',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#334155',
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  fontSize: 'calc(1rem + 2px)',
+                                  backdropFilter: 'none',
+                                }
+                                : isDark
+                                  ? undefined
+                                  : {
+                                  width: '56px',
+                                  height: '56px',
+                                  borderRadius: '14px',
+                                  background: 'rgba(255,255,255,0.35)',
+                                  border: '1px solid rgba(255,255,255,0.25)',
+                                  color: '#334155',
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  fontSize: '1.45rem',
+                                  backdropFilter: 'blur(3px)',
+                                }
+                            }
                           >
-                            <span style={{ filter: isAppsShortcutView ? 'saturate(0.65)' : 'none' }}>{app.iconNode}</span>
+                            <span style={{ filter: isAppsShortcutView && !isDark ? 'saturate(0.65)' : 'none' }}>{app.iconNode}</span>
                           </div>
                           <div
                             className="app-brick-label"
                             style={{
-                              fontSize: isHybrid ? '12px' : '0.78rem',
+                              fontSize: isHybrid ? '12px' : isDark ? '0.72rem' : '0.78rem',
                               fontWeight: 400,
                               color: isHybrid ? '#0f172a' : '#ffffff',
                               textShadow: isHybrid ? 'none' : '0 1px 2px rgba(0,0,0,0.55)',
@@ -961,9 +1054,12 @@ const Dashboard: React.FC = () => {
                     titleBarStyle={titleBarStyle}
                     controlsWidth={controlsPanelWidth}
                     titleBarHeight={titleBarHeight}
-                    transparentControls={isDesktop || isSolidSlate}
+                    transparentControls={isDesktop || isSolidSlate || isDark}
                     showControlsBorder={isDashboard}
                     primaryColor={primaryColor}
+                    collapsedStripBackground={collapsedControlStripBackground}
+                    controlsBackground={isWeb ? webChromeSurface : controlPaneSurface}
+                    themedCollapsedControlStrip={useThemedCollapsedControlStrip}
                     partialChrome={
                       hasPartialTitleBar && activeWindowId === `app:${app.key}`
                         ? renderWindowChrome(true)
@@ -977,7 +1073,7 @@ const Dashboard: React.FC = () => {
         </main>
 
         {/* Bottom task bar for Desktop and Sharp layouts */}
-        {(isDesktop || isSharp) && (
+        {(isDesktop || isSharp || isDark) && (
           <DesktopTaskbar
             items={visibleMenuItems}
             accountSubmenuItems={accountSubmenuItems}
@@ -986,6 +1082,7 @@ const Dashboard: React.FC = () => {
             openedAccountsMenuArea={openedAccountsMenuArea}
             setOpenedAccountsMenuArea={setOpenedAccountsMenuArea}
             isSharp={isSharp}
+            isDark={isDark}
             isLandscape={isLandscape}
             isWindowMaximized={isWindowMaximized}
             primaryColor={primaryColor}
