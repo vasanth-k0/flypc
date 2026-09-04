@@ -121,6 +121,7 @@ const Dashboard: React.FC = () => {
     setChangeNameValue,
     setCurrentPassword,
     setNewPassword,
+    handleLogin,
     handleLoginRequest,
     handleLogoutRequest,
     handleChangeName,
@@ -228,6 +229,8 @@ const Dashboard: React.FC = () => {
     useThemedCollapsedControlStrip,
     webChromeSurface,
     controlPaneSurface,
+    desktopChromeSurface,
+    desktopBackdropBlur,
     primaryColor,
     secondaryColor,
     isWhitePalette,
@@ -247,6 +250,9 @@ const Dashboard: React.FC = () => {
     solidSlateBackdropColor,
     solidSlateLabelColor,
     darkIconColor,
+    darkDockActiveBackground,
+    darkBrickBackground,
+    darkTitleButtonBackground,
   } = layout
 
   React.useEffect(() => {
@@ -328,11 +334,13 @@ const Dashboard: React.FC = () => {
     }
   }, [activeTheme])
 
+  const desktopAppIconColor = 'rgba(255, 255, 255, 0.95)'
+
   const launcherApps = apps.map((app) => ({
     key: app.key,
     name: app.name,
     description: app.description,
-    iconNode: renderAppIcon(app.icon),
+    iconNode: renderAppIcon(app.icon, isDesktop ? desktopAppIconColor : undefined),
     published: app.published,
     open: () => handleAppOpen(app),
   }))
@@ -431,9 +439,23 @@ const Dashboard: React.FC = () => {
 
       {/* Main Layout Area */}
       <MainContextMenu
+        isLandscape={isLandscape}
         isLoggedIn={Boolean(authUser)}
+        layoutMode={layoutMode}
+        activeTheme={activeTheme}
+        activeWallp={activeWallp}
+        primaryColor={primaryColor}
+        loginUsername={loginUsername}
+        loginPassword={loginPassword}
+        accountError={accountError}
+        onLoginUsernameChange={setLoginUsername}
+        onLoginPasswordChange={setLoginPassword}
+        onLoginSubmit={() => { void handleLogin() }}
         onLogin={() => setActiveWindowId('accounts')}
         onLogout={handleLogoutRequest}
+        onWallpaperChange={handleWallpaperChange}
+        onLayoutModeChange={handleLayoutModeChange}
+        onColorPaletteChange={handleColorPaletteChange}
         onRandomWallpaper={handleRandomWallpaper}
         onRandomLayout={handleRandomLayout}
         onRandomColorPalette={handleRandomColorPalette}
@@ -458,6 +480,8 @@ const Dashboard: React.FC = () => {
                   !isAppsShortcutView ? 'layout-hybrid-console--joined' : '',
                   sidebarOnRight ? 'layout-hybrid-console--menubar-right' : 'layout-hybrid-console--menubar-left',
                 ].filter(Boolean).join(' ')
+              : isDesktop
+                ? 'layout-desktop'
               : undefined
         }
         style={{
@@ -472,7 +496,11 @@ const Dashboard: React.FC = () => {
               }
             : isDark
               ? {
-                  ['--dark-primary' as string]: primaryColor,
+                  ['--dark-primary' as string]: darkTitleButtonBackground,
+                  ['--dark-title-button-bg' as string]: darkTitleButtonBackground,
+                  ['--dark-brick-surface' as string]: darkBrickBackground,
+                  ['--dark-dock-active-bg' as string]: darkDockActiveBackground,
+                  ['--dark-dock-active-icon' as string]: darkDockActiveBackground,
                   ['--dark-icon' as string]: darkIconColor,
                   ['--dark-title-bar' as string]: 'rgba(255, 255, 255, 0.06)',
                   ['--dark-surface' as string]: 'rgba(22, 24, 28, 0.88)',
@@ -502,7 +530,7 @@ const Dashboard: React.FC = () => {
           margin: isDashboard ? '0 10px 10px' : '0',
           padding: isHybrid
             ? isLandscape
-              ? '13px'
+              ? '17px'
               : '10px'
             : isSharp
               ? 'clamp(1rem, 4vw, 3rem) clamp(1rem, 6vw, 5rem) calc(clamp(1rem, 3.5vw, 2.5rem) + 40px)'
@@ -511,6 +539,14 @@ const Dashboard: React.FC = () => {
               : '0',
         }}
       >
+        {isDark && <div className="layout-dark__scrim" aria-hidden="true" />}
+        {isHybrid && (
+          <div
+            className="layout-hybrid-console__padding-blur"
+            aria-hidden="true"
+            style={{ ['--hybrid-padding' as string]: isLandscape ? '17px' : '10px' }}
+          />
+        )}
         {isDashboard && !isLandscape && (
           <button
             title={isDashboardMenuVisible ? 'Collapse menu' : 'Expand menu'}
@@ -536,6 +572,24 @@ const Dashboard: React.FC = () => {
             {isDashboardMenuVisible ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </button>
         )}
+
+        <div
+          className={
+            isHybrid
+              ? [
+                  'layout-hybrid-console__surface',
+                  !isAppsShortcutView ? 'layout-hybrid-console__surface--joined' : '',
+                  isLandscape ? 'layout-hybrid-console__surface--landscape' : 'layout-hybrid-console__surface--portrait',
+                  sidebarOnRight ? 'layout-hybrid-console__surface--menubar-right' : 'layout-hybrid-console__surface--menubar-left',
+                ].filter(Boolean).join(' ')
+              : undefined
+          }
+          style={
+            isHybrid
+              ? { flexDirection: isLandscape ? 'row' : 'row-reverse' }
+              : { display: 'contents' }
+          }
+        >
 
         {/* Menu on side - left in dashboard landscape, right in dashboard portrait, left rail in hybrid */}
         {(isDashboard || isHybrid) && !isWindowMaximized && (
@@ -679,10 +733,12 @@ const Dashboard: React.FC = () => {
                       ? solidSlateBackdropColor
                       : isDark
                         ? undefined
+                      : isDesktop
+                        ? desktopChromeSurface
                       : isSharp
                         ? 'rgba(255, 255, 255, 0.19)'
                         : 'rgba(255, 255, 255, 0.18)',
-              backdropFilter: isShortcutSurface ? 'none' : isWeb ? 'none' : isSolidSlate || isDark ? undefined : 'blur(24px)',
+              backdropFilter: isShortcutSurface ? 'none' : isWeb ? 'none' : isSolidSlate || isDark ? undefined : isDesktop ? desktopBackdropBlur : 'blur(24px)',
               borderRadius: isWindowMaximized
                 ? '0'
                 : isSolidSlate
@@ -751,7 +807,6 @@ const Dashboard: React.FC = () => {
                       style={{
                         ['--solid-slate-icon' as string]: solidSlateIconColor,
                         ['--solid-slate-label' as string]: solidSlateLabelColor,
-                        ['--solid-slate-tile-columns' as string]: isLandscape ? 'repeat(auto-fill, 88px)' : 'repeat(3, 88px)',
                       }}
                     >
                       <div className="solid-slate-app-grid__inner">
@@ -843,7 +898,13 @@ const Dashboard: React.FC = () => {
                           }
                         >
                           <div
-                            className={isDark ? 'app-brick-btn-dark__icon' : undefined}
+                            className={
+                              isDark
+                                ? 'app-brick-btn-dark__icon'
+                                : isDesktop
+                                  ? 'app-brick-btn-desktop__icon'
+                                  : undefined
+                            }
                             style={
                               isHybrid
                                 ? {
@@ -860,6 +921,19 @@ const Dashboard: React.FC = () => {
                                 }
                                 : isDark
                                   ? undefined
+                                  : isDesktop
+                                    ? {
+                                    width: '56px',
+                                    height: '56px',
+                                    borderRadius: '14px',
+                                    background: desktopChromeSurface,
+                                    border: '1px solid rgba(255,255,255,0.25)',
+                                    color: desktopAppIconColor,
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    fontSize: '1.45rem',
+                                    backdropFilter: desktopBackdropBlur,
+                                  }
                                   : {
                                   width: '56px',
                                   height: '56px',
@@ -874,7 +948,9 @@ const Dashboard: React.FC = () => {
                                 }
                             }
                           >
-                            <span style={{ filter: isAppsShortcutView && !isDark ? 'saturate(0.65)' : 'none' }}>{app.iconNode}</span>
+                            <span style={{ filter: isAppsShortcutView && !isDark && !isDesktop ? 'saturate(0.65)' : 'none' }}>
+                              {app.iconNode}
+                            </span>
                           </div>
                           <div
                             className="app-brick-label"
@@ -1072,6 +1148,8 @@ const Dashboard: React.FC = () => {
           </div>
         </main>
 
+        </div>
+
         {/* Bottom task bar for Desktop and Sharp layouts */}
         {(isDesktop || isSharp || isDark) && (
           <DesktopTaskbar
@@ -1081,12 +1159,15 @@ const Dashboard: React.FC = () => {
             activeWindowId={activeWindowId}
             openedAccountsMenuArea={openedAccountsMenuArea}
             setOpenedAccountsMenuArea={setOpenedAccountsMenuArea}
+            isDesktop={isDesktop}
             isSharp={isSharp}
             isDark={isDark}
             isLandscape={isLandscape}
             isWindowMaximized={isWindowMaximized}
             primaryColor={primaryColor}
             secondaryColor={secondaryColor}
+            desktopChromeSurface={desktopChromeSurface}
+            desktopBackdropBlur={desktopBackdropBlur}
             getMenuItemColor={getMenuItemColor}
             withMenuIconColor={withMenuIconColor}
             onWindowChange={(key) => handleWindowChange(key as WindowId)}
